@@ -1,0 +1,244 @@
+defmodule Exa.Image.Bitmap do
+  @moduledoc "Utilities for bitmap buffers."
+
+  require Logger
+  use Exa.Image.Constants
+
+  import Exa.Types
+  alias Exa.Types, as: E
+
+  alias Exa.Color.Types, as: C
+
+  import Exa.Space.Types
+  alias Exa.Space.Types, as: S
+
+  import Exa.Image.Types
+  alias Exa.Image.Types, as: I
+
+  require Exa.Binary
+  alias Exa.Binary
+
+  alias Exa.Color.Pixel
+  alias Exa.Color.Colorb
+  alias Exa.Space.BBox2i
+
+  alias Exa.Image.Image
+
+  # ----------------
+  # public functions
+  # ----------------
+
+  @doc """
+  Create a new 2D bitmap with dimensions width and height.
+
+  The image can be created from either:
+  - an existing buffer
+  - initialized with a background bit value (0,1)
+  - predicate function that returns a bit for each location
+  """
+  @spec new(I.size(), I.size(), binary() | E.bit() | E.predicate?(S.pos2i())) :: %I.Bitmap{}
+
+  def new(w, h, buf) when is_size(w) and is_size(h) and is_binary(buf) do
+    row = Binary.padded_bits(w)
+
+    if h * row != byte_size(buf) do
+      msg =
+        "Buffer does not match dimensions, " <>
+          "expecting #{h} * pad(#{w}) = #{h * row}, found #{byte_size(buf)}"
+
+      Logger.error(msg)
+      raise ArgumentError, message: msg
+    end
+
+    %I.Bitmap{width: w, height: h, row: row, buffer: buf}
+  end
+
+  def new(w, h, b) when is_size(w) and is_size(h) and is_bit(b) do
+    row = Binary.padded_bits(w)
+    buf = clear(row, h, b)
+    %I.Bitmap{width: w, height: h, row: row, buffer: buf}
+  end
+
+  def new(w, h, f) when is_size(w) and is_size(h) and is_pred(f) do
+    row = Binary.padded_bits(w)
+    pad = Binary.pad_bits(w)
+
+    buf =
+      Enum.reduce(0..(h - 1), <<>>, fn j, buf ->
+        row =
+          Enum.reduce(0..(w - 1), buf, fn i, buf ->
+            b = if f.({i, j}), do: 1, else: 0
+            <<buf::bits, b::1>>
+          end)
+
+        <<row::bits, 0::size(pad)>>
+      end)
+
+    %I.Bitmap{width: w, height: h, row: row, buffer: buf}
+  end
+
+  @doc "Get the extents of the bitmap."
+  @spec bbox(%I.Bitmap{}) :: S.bbox2i()
+  def bbox(%I.Bitmap{width: w, height: h}), do: BBox2i.from_pos_dims({0, 0}, {w, h})
+
+  @doc """
+  Get a bit value.
+
+  Raise an error if the position is out-of-bounds.
+  """
+  @spec get_bit(%I.Bitmap{}, S.pos2i()) :: E.bit()
+  def get_bit(%I.Bitmap{buffer: buf} = bmp, pos) when is_pos2i(pos) do
+    in_bounds!(bmp, pos)
+    Binary.bit(buf, addr(bmp, pos))
+  end
+
+  @doc """
+  Set a bit in a Bitmap.
+
+  Raise an error if the position is out-of-bounds.
+  """
+  @spec set_bit(%I.Bitmap{}, S.pos2i(), E.bit()) :: %I.Bitmap{}
+  def set_bit(%I.Bitmap{buffer: buf} = bmp, pos, b) when is_bit(b) do
+    in_bounds!(bmp, pos)
+    new_buf = Binary.set_bit(buf, addr(bmp, pos), b)
+    %I.Bitmap{bmp | :buffer => new_buf}
+  end
+
+  @doc """
+  Get the sequence of bit values in a Bitmap.
+
+  Result is a list of rows, 
+  where each row is a list of bit integers.
+  """
+  @spec get_bits(%I.Bitmap{}) :: [[E.bit()]]
+  def get_bits(%I.Bitmap{width: w, height: h, row: row, buffer: buf}) do
+    {<<>>, blist} =
+      Enum.reduce(1..h, {buf, []}, fn _, {buf, blist} ->
+        {row_buf, rest} = Binary.take(buf, row)
+        row_bits = Binary.take_bits(row_buf, w)
+        {rest, [row_bits | blist]}
+      end)
+
+    Enum.reverse(blist)
+  end
+
+  @doc "Reflect the image in the y-direction."
+  @spec reflect_y(%I.Bitmap{}) :: %I.Bitmap{}
+
+  def reflect_y(%I.Bitmap{row: 1, buffer: buf} = bmp) do
+    buf = buf |> Binary.to_bytes() |> Enum.reverse() |> Binary.from_bytes()
+    %I.Bitmap{bmp | :buffer => buf}
+  end
+
+  def reflect_y(%I.Bitmap{} = bmp) do
+    buf = bmp |> get_rows() |> Enum.reverse() |> Binary.concat()
+    %I.Bitmap{bmp | :buffer => buf}
+  end
+
+  @doc """
+  Map a bit function over the bitmap.
+
+  The actual execution is a nested reduction 
+  over the rows and bits of the bitmap.
+  The new output buffer is threaded through as the accumulator.
+
+  The final output buffer can be a binary (whole number of bytes), or a bitstring. 
+  The output should usually have the same dimensions as the original bitmap.
+
+  The bit function must have signature:
+
+  `bitfun(i :: E.index0(), j :: E.index0(), b :: bit(), out :: bits() ) :: bits()`
+
+  The `{i,j}` pixel coordinate can probably be ignored for most usage.
+  """
+  @spec map(%I.Bitmap{}, (E.index0(), E.index0(), E.bit(), E.bits() -> E.bits())) :: binary()
+  def map(%I.Bitmap{width: w, height: h, row: row, buffer: buf}, bitfun) do
+    {<<>>, out} =
+      Enum.reduce(0..(h - 1), {buf, <<>>}, fn j, {buf, out} ->
+        {row_buf, rest} = Binary.take(buf, row)
+
+        {_pad, out} =
+          Enum.reduce(0..(w - 1), {row_buf, out}, fn
+            i, {<<b::1, rest::bits>>, out} -> {rest, bitfun.(i, j, b, out)}
+          end)
+
+        {rest, out}
+      end)
+
+    out
+  end
+
+  @doc """
+  Convert the bitmap to a String, 
+  using foreground and background characters.
+  Rows are separated by a single newline.
+  """
+  @spec ascii_art(%I.Bitmap{}, char(), char()) :: String.t()
+  def ascii_art(%I.Bitmap{} = bmp, fg \\ ?*, bg \\ ?.) do
+    map(bmp, fn i, j, b, out ->
+      c = if b === 0, do: bg, else: fg
+      out = if i == 0 and j > 0, do: <<out::binary, ?\n>>, else: out
+      <<out::binary, c>>
+    end)
+  end
+
+  @doc """
+  Convert the bitmap to an Image, 
+  using foreground and background byte colors.
+  The colors must be compatible with the specified pixel format.
+  """
+  @spec to_image(%I.Bitmap{}, C.pixel(), C.colorb(), C.colorb()) :: %I.Image{}
+  def to_image(%I.Bitmap{width: w, height: h} = bmp, pix, fg, bg) do
+    Pixel.valid!(pix, fg)
+    Pixel.valid!(pix, bg)
+
+    buf =
+      map(bmp, fn _i, _j, b, out ->
+        col = if b === 0, do: bg, else: fg
+        Colorb.append_bin(out, pix, col)
+      end)
+
+    Image.new(w, h, pix, buf)
+  end
+
+  # -----------------
+  # private functions
+  # -----------------
+
+  # test bounds for public function
+  @spec in_bounds!(%I.Bitmap{}, S.pos2i()) :: nil
+  defp in_bounds!(%I.Bitmap{width: w, height: h}, {i, j}) do
+    if i < 0 or i >= w or j < 0 or j >= h do
+      msg =
+        "Bitmap coordinates out of bounds, " <>
+          "dimensions (0..#{w - 1}, 0..#{h - 1}), position {#{i},#{j}}."
+
+      Logger.error(msg)
+      raise ArgumentError, message: msg
+    end
+  end
+
+  # create a new buffer filled with a background value
+  # note that pad bits also get the background value
+  @spec clear(E.bsize(), I.size(), E.bit()) :: binary()
+  defp clear(row, h, b) do
+    byte = if b == 0, do: 0x00, else: 0xFF
+    Enum.reduce(1..(h * row), <<>>, fn _, buf -> <<buf::binary, byte::8>> end)
+  end
+
+  @doc """
+  Get the sequence of rows as a list of buffers.
+  """
+  @spec get_rows(%I.Bitmap{}) :: [binary()]
+  def get_rows(%I.Bitmap{height: height, row: row, buffer: buf}) do
+    0..(height - 1)
+    |> Enum.reduce({0, []}, fn _, {k, ps} -> {k + 1, [{buf, k, row} | ps]} end)
+    |> elem(1)
+    |> Enum.reverse()
+    |> Binary.parts()
+  end
+
+  # {byte, bit} offset address (prefix length) of a position in the buffer
+  @spec addr(%I.Bitmap{}, S.pos2i()) :: {nbyte :: E.index0(), nbit :: E.index0()}
+  defp addr(%I.Bitmap{row: row}, {i, j}), do: {j * row + Binary.div8(i), Binary.rem8(i)}
+end
