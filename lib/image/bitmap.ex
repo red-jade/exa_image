@@ -136,25 +136,18 @@ defmodule Exa.Image.Bitmap do
   end
 
   @doc """
-  Map a bit function over the bitmap.
+  Reduce a function over the bits of a bitmap.
 
-  The actual execution is a nested reduction 
-  over the rows and bits of the bitmap.
-  The new output buffer is threaded through as the accumulator.
+  The bit reducer function must have signature:
 
-  The final output buffer can be a binary (whole number of bytes), or a bitstring. 
-  The output should usually have the same dimensions as the original bitmap.
-
-  The bit function must have signature:
-
-  `bitfun(i :: E.index0(), j :: E.index0(), b :: bit(), out :: bits() ) :: bits()`
+  `bitfun(i :: E.index0(), j :: E.index0(), b :: bit(), out :: any() ) :: any()`
 
   The `{i,j}` pixel coordinate can probably be ignored for most usage.
   """
-  @spec map(%I.Bitmap{}, (E.index0(), E.index0(), E.bit(), E.bits() -> E.bits())) :: binary()
-  def map(%I.Bitmap{width: w, height: h, row: row, buffer: buf}, bitfun) do
+  @spec reduce(%I.Bitmap{}, a, (E.index0(), E.index0(), E.bit(), a -> a)) :: a when a: var
+  def reduce(%I.Bitmap{width: w, height: h, row: row, buffer: buf}, init, bitfun) do
     {<<>>, out} =
-      Enum.reduce(0..(h - 1), {buf, <<>>}, fn j, {buf, out} ->
+      Enum.reduce(0..(h - 1), {buf, init}, fn j, {buf, out} ->
         {row_buf, rest} = Binary.take(buf, row)
 
         {_pad, out} =
@@ -171,16 +164,65 @@ defmodule Exa.Image.Bitmap do
   @doc """
   Convert the bitmap to a String, 
   using foreground and background characters.
-  Rows are separated by a single newline.
+
+  The String is generated in row-major order,
+  with the origin in the top-left corner
+  (j=0 row first).
+  The printed appearance will be consistent with
+  image-based graphics and fonts,
+  but reversed (flipped j-direction) with respect to 
+  vector graphics systems (e.g. OpenGL).
+
+  Default characters are: `'X'` (1) and `'.'` (0).
+
+  Rows end with a single newline.
   """
-  @spec ascii_art(%I.Bitmap{}, char(), char()) :: String.t()
-  def ascii_art(%I.Bitmap{} = bmp, fg \\ ?*, bg \\ ?.) do
-    map(bmp, fn i, j, b, out ->
+  @spec to_ascii(%I.Bitmap{}, char(), char()) :: String.t()
+  def to_ascii(%I.Bitmap{} = bmp, fg \\ ?X, bg \\ ?.) do
+    out = reduce(bmp, <<>>, fn i, j, b, out ->
       c = if b === 0, do: bg, else: fg
       out = if i == 0 and j > 0, do: <<out::binary, ?\n>>, else: out
       <<out::binary, c>>
     end)
+    <<out::binary, ?\n>>
   end
+
+  @doc """
+  Convert a String to a bitmap,
+  testing for foreground and background characters.
+
+  The String is consumed in row-major order,
+  with the origin in the top-left corner
+  (j=0 row first).
+
+  Default characters are: `'X'` (1) and `'.'` (0).
+
+  Rows end with a single newline.
+  """
+  @spec from_ascii(String.t(), I.size(), I.size(), char(), char()) :: %I.Bitmap{}
+  def from_ascii(str, w, h, fg \\ ?X, bg \\ ?.)
+       when is_string(str) and
+              is_size(w) and is_size(h) and
+              is_char(fg) and is_char(bg) and
+              byte_size(str) == h * (w + 1) do
+    row = Binary.padded_bits(w)
+    pad = Binary.pad_bits(w)
+    buf = asc(str, 0, 0, fg, bg, pad, <<>>)
+    %I.Bitmap{width: w, height: h, row: row, buffer: buf}
+  end
+
+  @spec asc(String.t(), non_neg_integer(), non_neg_integer(), char(), char(), E.bsize(), E.bits()) ::
+          %I.Bitmap{}
+  defp asc(<<c, rest::binary>>, i, j, fg, bg, pad, buf) do
+    case c do
+      ^bg -> asc(rest, i + 1, j, fg, bg, pad, <<buf::bits, 0::1>>)
+      ^fg -> asc(rest, i + 1, j, fg, bg, pad, <<buf::bits, 1::1>>)
+      ?\n when pad == 0 -> asc(rest, 0, j + 1, fg, bg, pad, buf)
+      ?\n -> asc(rest, 0, j + 1, fg, bg, pad, <<buf::bits, 0::size(pad)>>)
+    end
+  end
+
+  defp asc(<<>>, _i, _j, _fg, _bg, _pad, buf), do: buf
 
   @doc """
   Convert the bitmap to an Image, 
@@ -193,7 +235,7 @@ defmodule Exa.Image.Bitmap do
     Pixel.valid!(pix, bg)
 
     buf =
-      map(bmp, fn _i, _j, b, out ->
+      reduce(bmp, <<>>, fn _i, _j, b, out ->
         col = if b === 0, do: bg, else: fg
         Colorb.append_bin(out, pix, col)
       end)
@@ -226,11 +268,9 @@ defmodule Exa.Image.Bitmap do
     Enum.reduce(1..(h * row), <<>>, fn _, buf -> <<buf::binary, byte::8>> end)
   end
 
-  @doc """
-  Get the sequence of rows as a list of buffers.
-  """
+  # get the sequence of rows as a list of buffers.
   @spec get_rows(%I.Bitmap{}) :: [binary()]
-  def get_rows(%I.Bitmap{height: height, row: row, buffer: buf}) do
+  defp get_rows(%I.Bitmap{height: height, row: row, buffer: buf}) do
     0..(height - 1)
     |> Enum.reduce({0, []}, fn _, {k, ps} -> {k + 1, [{buf, k, row} | ps]} end)
     |> elem(1)
