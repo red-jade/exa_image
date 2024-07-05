@@ -145,6 +145,40 @@ defmodule Exa.Image.BitmapTest do
     assert_raise ArgumentError, fn -> set_bit(chess, {4, 0}, 1) end
   end
 
+  test "reflect y" do
+    i5 = %I.Bitmap{width: 5, height: 5, row: 1, buffer: <<255,0,0,0,0>>} 
+    i5y = reflect_y(i5)
+    assert <<0,0,0,0,255>> == i5y.buffer
+
+    i9 = %I.Bitmap{width: 9, height: 3, row: 2, buffer: <<255,255,0,0,0,0>>}
+    i9y = reflect_y(i9)
+    assert <<0,0,0,0,255,255>> == i9y.buffer
+
+    i20 = %I.Bitmap{
+           width: 20, height: 3, row: 3, 
+           buffer: <<255,255,255,0,0,0,0,0,0>>
+         }
+    i20y = reflect_y(i20)
+    assert <<0,0,0,0,0,0,255,255,255>> == i20y.buffer
+  end
+
+  test "reflect x" do
+    i3 = %I.Bitmap{width: 3, height: 3, row: 1, buffer: <<32,64,96>>} 
+    i3x = reflect_x(i3)
+    assert <<128,64,192>> == i3x.buffer
+
+    i8 = %I.Bitmap{width: 8, height: 3, row: 1, buffer: <<32,64,96>>}
+    i8x = reflect_x(i8)
+    assert <<4,2,6>> == i8x.buffer
+
+    i20 = %I.Bitmap{
+           width: 20, height: 3, row: 3, 
+           buffer: <<128,0,0,64,0,0,32,0,0>>
+         }
+    i20x = reflect_x(i20)
+    assert <<0,0,16,0,0,32,0,0,64>> == i20x.buffer
+  end
+
   test "ascii" do
     chess = new(4, 4, @chess_buf44)
     ascii = """

@@ -5,7 +5,7 @@ defmodule Exa.Image.MixProject do
     [
       app: :exa_image,
       name: "Exa Image",
-      version: "0.1.0",
+      version: "0.1.2",
       elixir: "~> 1.15",
       erlc_options: [:verbose, :report_errors, :report_warnings, :export_all],
       start_permanent: Mix.env() == :prod,
@@ -35,10 +35,10 @@ defmodule Exa.Image.MixProject do
     [
       # runtime code dependencies ----------
 
-      {:exa, git: "https://github.com/red-jade/exa_core.git", tag: "v0.1.1"},
-      {:exa_std, git: "https://github.com/red-jade/exa_std.git", tag: "v0.1.1"},
-      {:exa_color, git: "https://github.com/red-jade/exa_color.git", tag: "v0.1.1"},
-      {:exa_space, git: "https://github.com/red-jade/exa_space.git", tag: "v0.1.1"},
+      {:exa, git: "https://github.com/red-jade/exa_core.git", tag: "v0.1.2"},
+      {:exa_std, git: "https://github.com/red-jade/exa_std.git", tag: "v0.1.2"},
+      {:exa_color, git: "https://github.com/red-jade/exa_color.git", tag: "v0.1.2"},
+      {:exa_space, git: "https://github.com/red-jade/exa_space.git", tag: "v0.1.2"},
 
       # building, documenting, testing ----------
 

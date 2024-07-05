@@ -122,7 +122,7 @@ defmodule Exa.Image.Bitmap do
     Enum.reverse(blist)
   end
 
-  @doc "Reflect the image in the y-direction."
+  @doc "Reflect the bitmap in the y-direction."
   @spec reflect_y(%I.Bitmap{}) :: %I.Bitmap{}
 
   def reflect_y(%I.Bitmap{row: 1, buffer: buf} = bmp) do
@@ -131,8 +131,37 @@ defmodule Exa.Image.Bitmap do
   end
 
   def reflect_y(%I.Bitmap{} = bmp) do
-    buf = bmp |> get_rows() |> Enum.reverse() |> Binary.concat()
+    buf = bmp |> get_rev_rows() |> Binary.concat()
     %I.Bitmap{bmp | :buffer => buf}
+  end
+
+  @doc "Reflect the bitmap in the x-direction."
+  @spec reflect_x(%I.Bitmap{}) :: %I.Bitmap{}
+
+  def reflect_x(%I.Bitmap{width: w} = bmp) when Binary.rem8(w) == 0 do
+    buf = bmp 
+    |> get_rev_rows() 
+    |> Enum.reverse() 
+    |> Enum.map(&Binary.reverse_bits/1) 
+    |> Binary.concat()
+    %I.Bitmap{bmp | :buffer => buf}
+  end
+
+  def reflect_x(%I.Bitmap{width: w, row: row} = bmp) do
+    pad = 8 * row - w
+     buf = bmp
+    |> get_rev_rows() 
+    |> Enum.reverse() 
+    |> Enum.map(&mask_reverse_bits(&1, w, pad)) 
+    |> Binary.concat()
+    %I.Bitmap{bmp | :buffer => buf}
+  end
+
+  @spec mask_reverse_bits(binary(), E.bsize(), E.bsize()) :: binary()
+  defp mask_reverse_bits(buf, nbits, pad) when pad > 0 do
+    <<data::size(nbits)-bits, _::size(pad)>> = buf
+    atad = Binary.reverse_bits(data)
+    <<atad::size(nbits)-bits, 0::size(pad)>>
   end
 
   @doc """
@@ -179,11 +208,13 @@ defmodule Exa.Image.Bitmap do
   """
   @spec to_ascii(%I.Bitmap{}, char(), char()) :: String.t()
   def to_ascii(%I.Bitmap{} = bmp, fg \\ ?X, bg \\ ?.) do
-    out = reduce(bmp, <<>>, fn i, j, b, out ->
-      c = if b === 0, do: bg, else: fg
-      out = if i == 0 and j > 0, do: <<out::binary, ?\n>>, else: out
-      <<out::binary, c>>
-    end)
+    out =
+      reduce(bmp, <<>>, fn i, j, b, out ->
+        c = if b === 0, do: bg, else: fg
+        out = if i == 0 and j > 0, do: <<out::binary, ?\n>>, else: out
+        <<out::binary, c>>
+      end)
+
     <<out::binary, ?\n>>
   end
 
@@ -201,10 +232,10 @@ defmodule Exa.Image.Bitmap do
   """
   @spec from_ascii(String.t(), I.size(), I.size(), char(), char()) :: %I.Bitmap{}
   def from_ascii(str, w, h, fg \\ ?X, bg \\ ?.)
-       when is_string(str) and
-              is_size(w) and is_size(h) and
-              is_char(fg) and is_char(bg) and
-              byte_size(str) == h * (w + 1) do
+      when is_string(str) and
+             is_size(w) and is_size(h) and
+             is_char(fg) and is_char(bg) and
+             byte_size(str) == h * (w + 1) do
     row = Binary.padded_bits(w)
     pad = Binary.pad_bits(w)
     buf = asc(str, 0, 0, fg, bg, pad, <<>>)
@@ -212,7 +243,7 @@ defmodule Exa.Image.Bitmap do
   end
 
   @spec asc(String.t(), non_neg_integer(), non_neg_integer(), char(), char(), E.bsize(), E.bits()) ::
-          %I.Bitmap{}
+          E.bits()
   defp asc(<<c, rest::binary>>, i, j, fg, bg, pad, buf) do
     case c do
       ^bg -> asc(rest, i + 1, j, fg, bg, pad, <<buf::bits, 0::1>>)
@@ -268,13 +299,12 @@ defmodule Exa.Image.Bitmap do
     Enum.reduce(1..(h * row), <<>>, fn _, buf -> <<buf::binary, byte::8>> end)
   end
 
-  # get the sequence of rows as a list of buffers.
-  @spec get_rows(%I.Bitmap{}) :: [binary()]
-  defp get_rows(%I.Bitmap{height: height, row: row, buffer: buf}) do
+  # get the sequence of rows as a reversed list of buffers.
+  @spec get_rev_rows(%I.Bitmap{}) :: [binary()]
+  defp get_rev_rows(%I.Bitmap{height: height, row: row, buffer: buf}) do
     0..(height - 1)
-    |> Enum.reduce({0, []}, fn _, {k, ps} -> {k + 1, [{buf, k, row} | ps]} end)
+    |> Enum.reduce({0, []}, fn _, {k, ps} -> {k + row, [{buf, k, row} | ps]} end)
     |> elem(1)
-    |> Enum.reverse()
     |> Binary.parts()
   end
 
