@@ -5,7 +5,7 @@ defmodule Exa.Image.MixProject do
     [
       app: :exa_image,
       name: "Exa Image",
-      version: "0.1.2",
+      version: "0.1.3",
       elixir: "~> 1.15",
       erlc_options: [:verbose, :report_errors, :report_warnings, :export_all],
       start_permanent: Mix.env() == :prod,
