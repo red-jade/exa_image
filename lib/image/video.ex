@@ -17,6 +17,37 @@ defmodule Exa.Image.Video do
   alias Exa.Image.Types, as: I
   alias Exa.Image.Image
 
+  # -----
+  # types
+  # -----
+
+  @type exe() :: :ffmpeg | :ffprobe | :ffplay
+
+  defguardp is_exe(e) when e in [:ffmpeg, :ffprobe, :ffplay]
+
+  # options that are passed through to the command line
+  @options [
+    "c:v",
+    "f",
+    "i",
+    "framerate",
+    "loglevel",
+    # "overwrite"
+    "pattern_type",
+    "pix_fmt",
+    "r",
+    "s:v",
+    "start_number"
+  ]
+
+  # output of parsed json
+  # @type value() :: number() | String.t()
+  # @type format() :: %{atom() => value()}
+
+  # @type stream() :: %{}
+
+  # @type vinfo() :: {format(), [stream()]}
+
   # ------------
   # frame images
   # ------------
@@ -68,45 +99,66 @@ defmodule Exa.Image.Video do
   # video creation
   # --------------
 
-  # the ffmpeg executable
-  @ffmpeg "ffmpeg"
-
-  # allowed options that are passed through to ffmpeg
-  @ffmpeg_options [
-    "c:v",
-    "f",
-    "i",
-    "framerate",
-    "loglevel",
-    # "overwrite"
-    "pattern_type",
-    "pix_fmt",
-    "r",
-    "s:v",
-    "start_number"
-  ]
-
   @doc "Get the ffmpeg installed executable path."
-  @spec ensure_ffmpeg() :: nil | E.filename()
-  def ensure_ffmpeg(), do: System.find_executable(@ffmpeg)
+  @spec installed(exe()) :: nil | E.filename()
+  def installed(exe) when is_exe(exe), do: System.find_executable(exe)
 
   @doc """
-  Ensure that ffmpeg is installed and accessible 
-  on the OS command line, otherwise raise an error.
+  Ensure that target executable is installed and accessible 
+  on the OS command line (PATH), otherwise raise an error.
   """
-  @spec ensure_ffmpeg!() :: E.filename()
-  def ensure_ffmpeg!() do
-    case System.find_executable(@ffmpeg) do
+  @spec ensure_installed!(exe()) :: E.filename()
+  def ensure_installed!(exe) when is_exe(exe) do
+    case exe |> to_string() |> System.find_executable() do
       nil ->
-        msg = "Cannot find '#{@ffmpeg}' executable"
+        msg = "Cannot find '#{exe}' executable"
         Logger.error(msg)
-        {:ok, path} = System.fetch_env("PATH")
-        Logger.error("PATH=#{path}")
         raise RuntimeError, message: msg
 
       exe ->
         exe
     end
+  end
+
+  @doc """
+  Get information about the content of a video file.
+
+  The executable `ffprobe` must be installed 
+  and available on the command line.
+
+  If the `loglevel` is not set in the options argument, 
+  it is set automatically from the Elixir `Logger.level()`.
+  """
+  @spec info(E.filename(), E.options()) :: map() | {:error, any()}
+  def info(vfile, opts) when is_filename(vfile) do
+    ensure_installed!(:ffprobe)
+
+    if not File.exists?(vfile) do
+      msg = "Video file does not exist: #{vfile}"
+      Logger.error(msg)
+      {:error, msg}
+    else
+      ents = ["-of", "json", "-show_format", "-show_streams"]
+      args = ents ++ options(opts) ++ [vfile]
+
+      case System.cmd("ffprobe", args, []) do
+        {output, 0} ->
+          parse_info(output)
+
+        {msg, status} when status > 0 ->
+          Logger.error("ffprobe failed [#{status}]: " <> inspect(msg))
+          {:error, msg}
+      end
+    end
+
+    # rescue
+    #   err ->
+    #     Logger.error("ffprobe error: " <> inspect(err))
+    #     {:error, err}
+  end
+
+  defp parse_info(json) do
+    json
   end
 
   @doc """
@@ -127,24 +179,24 @@ defmodule Exa.Image.Video do
 
   Keys can be repeated.
 
-  The FFMPEG `loglevel` is automatically set from the Elixir `Logger.level()`.
+  If the `loglevel` is not set in the options argument, 
+  it is set automatically from the Elixir `Logger.level()`.
   """
   @spec from_files(E.filename(), E.options()) :: :ok | {:error, any()}
   def from_files(vfile, opts) when is_filename(vfile) do
-    ensure_ffmpeg!()
+    ensure_installed!(:ffmpeg)
     Exa.File.ensure_dir!(vfile)
-    # use filetype, not fmt option
-    level = Logger.level()
 
-    if Logger.compare_levels(level, :error) == :lt do
+    if Logger.compare_levels(Logger.level(), :error) == :lt do
+      # use filetype, not fmt option
       {_dir, name, types} = Exa.File.split(vfile)
       type = List.last(types)
       Logger.info("Write #{String.upcase(type)} file: '#{name}.#{type}'", file: vfile)
     end
 
-    args = ["-loglevel", level(level) | options(opts)] ++ [vfile]
+    args = options(opts) ++ [vfile]
 
-    case System.cmd(@ffmpeg, args, []) do
+    case System.cmd("ffmpeg", args, []) do
       {"", 0} ->
         :ok
 
@@ -159,18 +211,25 @@ defmodule Exa.Image.Video do
   end
 
   # convert keyword input options to command line arguments
+
   @spec options(Keyword.t()) :: [String.t()]
   defp options(opts) do
-    opts
-    |> Enum.reverse()
-    |> Enum.reduce([], fn
-      {k, v}, args ->
-        case to_string(k) do
-          "overwrite" when v in ["y", "n"] -> ["-#{v}" | args]
-          kstr when kstr in @ffmpeg_options -> ["-#{kstr}", "#{v}" | args]
-          _ -> args
-        end
-    end)
+    args =
+      opts
+      |> Enum.reverse()
+      |> Enum.reduce([], fn
+        {k, v}, args ->
+          case to_string(k) do
+            "loglevel" -> args
+            "overwrite" when v in ["y", "n"] -> ["-#{v}" | args]
+            kstr when kstr in @options -> ["-#{kstr}", "#{v}" | args]
+            _ -> args
+          end
+      end)
+
+    # always set the log level
+    lvl = Keyword.get(opts, :loglevel, level(Logger.level()))
+    ["-loglevel", lvl | args]
   end
 
   # convert Logger level to ffmpeg loglevel
