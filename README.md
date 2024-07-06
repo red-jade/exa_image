@@ -4,7 +4,7 @@
 
 EXA project index: [exa](https://github.com/red-jade/exa)
 
-Core utilities for 2D bitmaps and images.
+Core utilities for 2D bitmaps, images and video.
 
 Module path: `Exa.Image`
 
@@ -27,9 +27,14 @@ Image:
 - downsize, upsize and resize (integer multiple only)
 - split and merge for chunked parallel processing
 
-Image I/O
+Image I/O:
 - fork of E3D to read/write PNG/TIF/BMP formats
 - read/write _portable_ PBM/PGM/PBM text/binary formats
+
+Video (only if [ffmpeg](https://ffmpeg.org/download.html) is installed):
+- create video from image files
+- probe video for information
+- play video
 
 ### E3D License
 
@@ -42,11 +47,12 @@ See the file `src/e3d/license.terms` for licensing.
 
 See source file headers for author credit and copyright:
 
-All files are:  Copyright (c) Dan Gudmundsson
+All files are:<br>
+Copyright (c) Dan Gudmundsson
 
 ### License
 
 EXA source code is released under the MIT license.
 
-EXA code and documentation are:
+EXA code and documentation are:<br>
 Copyright (c) 2024 Mike French

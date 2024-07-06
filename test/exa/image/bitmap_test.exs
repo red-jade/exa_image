@@ -173,10 +173,35 @@ defmodule Exa.Image.BitmapTest do
 
     i20 = %I.Bitmap{
            width: 20, height: 3, row: 3, 
-           buffer: <<128,0,0,64,0,0,32,0,0>>
+           buffer: <<128,0,0,
+                      64,0,0,
+                      32,0,0>>
          }
     i20x = reflect_x(i20)
-    assert <<0,0,16,0,0,32,0,0,64>> == i20x.buffer
+    assert <<0,0,16,
+             0,0,32,
+             0,0,64>> == i20x.buffer
+  end
+
+  test "reduce" do
+    summa = fn _i, _j, b, sum -> sum + b end
+
+    i3 = %I.Bitmap{width: 3, height: 3, row: 1, buffer: <<33,65,97>>} 
+    sum3 = reduce(i3, 0, summa)
+    assert sum3 == 4
+
+    i8 = %I.Bitmap{width: 8, height: 3, row: 1, buffer: <<33,65,97>>}
+    sum8 = reduce(i8, 0, summa)
+    assert sum8 == 7
+
+    i20 = %I.Bitmap{
+           width: 20, height: 3, row: 3, 
+           buffer: <<128,0,1,
+                      64,0,2,
+                      32,0,4>>
+         }
+    sum20 = reduce(i20, 0, fn _i, _j, b, sum -> sum + b end)
+    assert sum20 == 3
   end
 
   test "ascii" do

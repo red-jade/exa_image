@@ -139,21 +139,26 @@ defmodule Exa.Image.Bitmap do
   @spec reflect_x(%I.Bitmap{}) :: %I.Bitmap{}
 
   def reflect_x(%I.Bitmap{width: w} = bmp) when Binary.rem8(w) == 0 do
-    buf = bmp 
-    |> get_rev_rows() 
-    |> Enum.reverse() 
-    |> Enum.map(&Binary.reverse_bits/1) 
-    |> Binary.concat()
+    buf =
+      bmp
+      |> get_rev_rows()
+      |> Enum.reverse()
+      |> Enum.map(&Binary.reverse_bits/1)
+      |> Binary.concat()
+
     %I.Bitmap{bmp | :buffer => buf}
   end
 
   def reflect_x(%I.Bitmap{width: w, row: row} = bmp) do
     pad = 8 * row - w
-     buf = bmp
-    |> get_rev_rows() 
-    |> Enum.reverse() 
-    |> Enum.map(&mask_reverse_bits(&1, w, pad)) 
-    |> Binary.concat()
+
+    buf =
+      bmp
+      |> get_rev_rows()
+      |> Enum.reverse()
+      |> Enum.map(&mask_reverse_bits(&1, w, pad))
+      |> Binary.concat()
+
     %I.Bitmap{bmp | :buffer => buf}
   end
 
@@ -170,17 +175,15 @@ defmodule Exa.Image.Bitmap do
   The bit reducer function must have signature:
 
   `bitfun(i :: E.index0(), j :: E.index0(), b :: bit(), out :: any() ) :: any()`
-
-  The `{i,j}` pixel coordinate can probably be ignored for most usage.
   """
   @spec reduce(%I.Bitmap{}, a, (E.index0(), E.index0(), E.bit(), a -> a)) :: a when a: var
   def reduce(%I.Bitmap{width: w, height: h, row: row, buffer: buf}, init, bitfun) do
+    pad = 8 * row - w
+
     {<<>>, out} =
       Enum.reduce(0..(h - 1), {buf, init}, fn j, {buf, out} ->
-        {row_buf, rest} = Binary.take(buf, row)
-
-        {_pad, out} =
-          Enum.reduce(0..(w - 1), {row_buf, out}, fn
+        {<<_::size(pad)-bits, rest::bits>>, out} =
+          Enum.reduce(0..(w - 1), {buf, out}, fn
             i, {<<b::1, rest::bits>>, out} -> {rest, bitfun.(i, j, b, out)}
           end)
 
@@ -228,7 +231,7 @@ defmodule Exa.Image.Bitmap do
 
   Default characters are: `'X'` (1) and `'.'` (0).
 
-  Rows end with a single newline.
+  Rows end with a single newline `'\\n'`.
   """
   @spec from_ascii(String.t(), I.size(), I.size(), char(), char()) :: %I.Bitmap{}
   def from_ascii(str, w, h, fg \\ ?X, bg \\ ?.)

@@ -12,6 +12,9 @@ defmodule Exa.Image.Constants do
       @filetype_pgm "pgm"
       @filetype_pbm "pbm"
 
+      @filetype_mp4 "mp4"
+      @filetype_avi "avi"
+
       @e3d_filetypes [@filetype_tga, @filetype_bmp, @filetype_png, @filetype_tif, "tiff"]
 
       @exa_filetypes [@filetype_pbm, @filetype_pgm, @filetype_ppm]

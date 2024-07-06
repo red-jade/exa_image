@@ -110,46 +110,6 @@ defmodule Exa.Image.Image do
     %Image{width: w, height: h, pixel: pix, ncomp: ncomp, row: row, buffer: buf}
   end
 
-  @doc """
-  Create a new image with the size of a video frame.
-  """
-  @spec frame(I.video_format(), C.pixel(), binary() | C.col3b()) :: %Image{}
-  def frame(video, pix, buf_col) when is_atom(video) do
-    {w, h} = video_size(video)
-    new(w, h, pix, buf_col)
-  end
-
-  # get the dimensions of a video frame
-  @spec video_size(I.video_format()) :: {I.size(), I.size()}
-
-  defp video_size(:video_sd), do: {640, 480}
-  defp video_size(:video_480p), do: {640, 480}
-
-  defp video_size(:video_hd), do: {1280, 720}
-  defp video_size(:video_720p), do: {1280, 720}
-
-  defp video_size(:video_fhd), do: {1920, 1080}
-  defp video_size(:video_1080p), do: {1920, 1080}
-
-  defp video_size(:video_qhd), do: {2560, 1440}
-  defp video_size(:video_1440p), do: {2560, 1440}
-
-  defp video_size(:video_2k), do: {2048, 1080}
-
-  defp video_size(:video_4k), do: {3840, 2160}
-  defp video_size(:video_uhd), do: {3840, 2160}
-  defp video_size(:video_2160p), do: {3840, 2160}
-
-  defp video_size(:video_8k), do: {7680, 4320}
-  defp video_size(:video_fuhd), do: {7680, 4320}
-  defp video_size(:video_4320p), do: {7680, 4320}
-
-  defp video_size(vid) do
-    msg = "Unrecognized video format #{vid}"
-    Logger.error(msg)
-    raise ArgumentError, message: msg
-  end
-
   # ------------
   # bounding box
   # ------------
