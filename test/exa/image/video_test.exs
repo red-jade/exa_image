@@ -59,9 +59,19 @@ defmodule Exa.Image.VideoTest do
   end
 
   test "info" do
-    mp4 = in_mp4("glider")
-    args = [loglevel: "error"]
-    info = Video.info(mp4, args)
-    IO.puts(info)
+    info = Video.info(in_mp4("glider"), loglevel: "error")
+
+    format = info.format
+    stream = hd(info.streams)
+
+    assert %{filename: "test/input/image/mp4/glider.mp4", size: "7505"} = format
+
+    assert %{
+             width: 200,
+             height: 200,
+             codec_name: "h264",
+             pix_fmt: "yuv420p",
+             duration: "12.500000"
+           } = stream
   end
 end

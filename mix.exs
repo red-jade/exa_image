@@ -39,6 +39,7 @@ defmodule Exa.Image.MixProject do
       {:exa_std, git: "https://github.com/red-jade/exa_std.git", tag: "v0.1.2"},
       {:exa_color, git: "https://github.com/red-jade/exa_color.git", tag: "v0.1.2"},
       {:exa_space, git: "https://github.com/red-jade/exa_space.git", tag: "v0.1.2"},
+      {:exa_json, git: "https://github.com/red-jade/exa_json.git", tag: "v0.1.0"},
 
       # building, documenting, testing ----------
 

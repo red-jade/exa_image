@@ -17,6 +17,9 @@ defmodule Exa.Image.Video do
   alias Exa.Image.Types, as: I
   alias Exa.Image.Image
 
+  alias Exa.Json.Types, as: J
+  alias Exa.Json.JsonReader
+
   # -----
   # types
   # -----
@@ -39,14 +42,6 @@ defmodule Exa.Image.Video do
     "s:v",
     "start_number"
   ]
-
-  # output of parsed json
-  # @type value() :: number() | String.t()
-  # @type format() :: %{atom() => value()}
-
-  # @type stream() :: %{}
-
-  # @type vinfo() :: {format(), [stream()]}
 
   # ------------
   # frame images
@@ -101,7 +96,7 @@ defmodule Exa.Image.Video do
 
   @doc "Get the ffmpeg installed executable path."
   @spec installed(exe()) :: nil | E.filename()
-  def installed(exe) when is_exe(exe), do: System.find_executable(exe)
+  def installed(exe) when is_exe(exe), do: exe |> to_string() |> System.find_executable()
 
   @doc """
   Ensure that target executable is installed and accessible 
@@ -109,7 +104,7 @@ defmodule Exa.Image.Video do
   """
   @spec ensure_installed!(exe()) :: E.filename()
   def ensure_installed!(exe) when is_exe(exe) do
-    case exe |> to_string() |> System.find_executable() do
+    case installed(exe) do
       nil ->
         msg = "Cannot find '#{exe}' executable"
         Logger.error(msg)
@@ -129,7 +124,7 @@ defmodule Exa.Image.Video do
   If the `loglevel` is not set in the options argument, 
   it is set automatically from the Elixir `Logger.level()`.
   """
-  @spec info(E.filename(), E.options()) :: map() | {:error, any()}
+  @spec info(E.filename(), E.options()) :: J.object() | {:error, any()}
   def info(vfile, opts) when is_filename(vfile) do
     ensure_installed!(:ffprobe)
 
@@ -143,22 +138,17 @@ defmodule Exa.Image.Video do
 
       case System.cmd("ffprobe", args, []) do
         {output, 0} ->
-          parse_info(output)
+          JsonReader.decode(output, object: Map)
 
         {msg, status} when status > 0 ->
           Logger.error("ffprobe failed [#{status}]: " <> inspect(msg))
           {:error, msg}
       end
     end
-
-    # rescue
-    #   err ->
-    #     Logger.error("ffprobe error: " <> inspect(err))
-    #     {:error, err}
-  end
-
-  defp parse_info(json) do
-    json
+  rescue
+    err ->
+      Logger.error("ffprobe error: " <> inspect(err))
+      {:error, err}
   end
 
   @doc """

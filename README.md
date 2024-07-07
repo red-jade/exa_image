@@ -34,7 +34,6 @@ Image I/O:
 Video (only if [ffmpeg](https://ffmpeg.org/download.html) is installed):
 - create video from image files
 - probe video for information
-- play video
 
 ### E3D License
 
