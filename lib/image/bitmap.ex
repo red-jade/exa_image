@@ -77,6 +77,14 @@ defmodule Exa.Image.Bitmap do
     %I.Bitmap{width: w, height: h, row: row, buffer: buf}
   end
 
+  @doc "Create a random bitmap."
+  @spec random(I.size(), I.size()) :: %I.Bitmap{}
+  def random(w, h) when is_size(w) and is_size(h) do
+    row = Binary.padded_bits(w)
+    buf = :rand.bytes(h*row)
+    %I.Bitmap{width: w, height: h, row: row, buffer: buf}
+  end
+
   @doc "Get the extents of the bitmap."
   @spec bbox(%I.Bitmap{}) :: S.bbox2i()
   def bbox(%I.Bitmap{width: w, height: h}), do: BBox2i.from_pos_dims({0, 0}, {w, h})
