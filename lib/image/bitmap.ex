@@ -24,6 +24,19 @@ defmodule Exa.Image.Bitmap do
 
   alias Exa.Image.Image
 
+  # -----
+  # types
+  # -----
+
+  @typedoc "A set of locations in a 2D image or bitmap."
+  @type bitset() :: MapSet.t(S.pos2i())
+
+  @typedoc "A predicate that returns a boolean value for each location."
+  @type bit_predicate() :: E.predicate?(S.pos2i())
+
+  @typedoc "A reducer function for updating state at each location and value."
+  @type bit_reducer(a) :: (E.index0(), E.index0(), E.bit(), a -> a)
+
   # ----------------
   # public functions
   # ----------------
@@ -35,8 +48,9 @@ defmodule Exa.Image.Bitmap do
   - an existing buffer
   - initialized with a background bit value (0,1)
   - predicate function that returns a bit for each location
+  - sparse set of locations with a bit value 1
   """
-  @spec new(I.size(), I.size(), binary() | E.bit() | E.predicate?(S.pos2i())) :: %I.Bitmap{}
+  @spec new(I.size(), I.size(), binary() | E.bit() | bit_predicate() | bitset()) :: %I.Bitmap{}
 
   def new(w, h, buf) when is_size(w) and is_size(h) and is_binary(buf) do
     row = Binary.padded_bits(w)
@@ -77,17 +91,30 @@ defmodule Exa.Image.Bitmap do
     %I.Bitmap{width: w, height: h, row: row, buffer: buf}
   end
 
+  def new(w, h, bset) when is_size(w) and is_size(h) and is_set(bset) do
+    new(w, h, fn loc -> if MapSet.member?(bset, loc), do: 1, else: 0 end)
+  end
+
   @doc "Create a random bitmap."
   @spec random(I.size(), I.size()) :: %I.Bitmap{}
   def random(w, h) when is_size(w) and is_size(h) do
     row = Binary.padded_bits(w)
-    buf = :rand.bytes(h*row)
+    buf = :rand.bytes(h * row)
     %I.Bitmap{width: w, height: h, row: row, buffer: buf}
   end
 
   @doc "Get the extents of the bitmap."
   @spec bbox(%I.Bitmap{}) :: S.bbox2i()
   def bbox(%I.Bitmap{width: w, height: h}), do: BBox2i.from_pos_dims({0, 0}, {w, h})
+
+  @doc "Convert to a set of locations that have bit value 1."
+  @spec to_bitset(%I.Bitmap{}) :: bitset()
+  def to_bitset(%I.Bitmap{} = bmp) do
+    reduce(bmp, MapSet.new(), fn
+      _, _, 0, bset -> bset
+      i, j, 1, bset -> MapSet.put(bset, {i, j})
+    end)
+  end
 
   @doc """
   Get a bit value.
@@ -184,15 +211,15 @@ defmodule Exa.Image.Bitmap do
 
   `bitfun(i :: E.index0(), j :: E.index0(), b :: bit(), out :: any() ) :: any()`
   """
-  @spec reduce(%I.Bitmap{}, a, (E.index0(), E.index0(), E.bit(), a -> a)) :: a when a: var
-  def reduce(%I.Bitmap{width: w, height: h, row: row, buffer: buf}, init, bitfun) do
+  @spec reduce(%I.Bitmap{}, a, bit_reducer(a)) :: a when a: var
+  def reduce(%I.Bitmap{width: w, height: h, row: row, buffer: buf}, init, bitred) do
     pad = 8 * row - w
 
     {<<>>, out} =
       Enum.reduce(0..(h - 1), {buf, init}, fn j, {buf, out} ->
         {<<_::size(pad)-bits, rest::bits>>, out} =
           Enum.reduce(0..(w - 1), {buf, out}, fn
-            i, {<<b::1, rest::bits>>, out} -> {rest, bitfun.(i, j, b, out)}
+            i, {<<b::1, rest::bits>>, out} -> {rest, bitred.(i, j, b, out)}
           end)
 
         {rest, out}

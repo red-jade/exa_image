@@ -35,12 +35,16 @@ defmodule Exa.Image.Video do
     "i",
     "framerate",
     "loglevel",
-    # "overwrite"
+    "loop",
     "pattern_type",
     "pix_fmt",
     "r",
+    "s",
     "s:v",
-    "start_number"
+    "ss",
+    "start_number",
+    "t",
+    "vf"
   ]
 
   # ------------

@@ -20,6 +20,10 @@ defmodule Exa.Image.Constants do
       @exa_filetypes [@filetype_pbm, @filetype_pgm, @filetype_ppm]
 
       @filetypes @e3d_filetypes ++ @exa_filetypes
+
+      # there is no interface to read/write GIF
+      # except the video interface for ffmpeg
+      @filetype_gif "gif"
     end
   end
 end
