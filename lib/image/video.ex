@@ -100,24 +100,14 @@ defmodule Exa.Image.Video do
 
   @doc "Get the ffmpeg installed executable path."
   @spec installed(exe()) :: nil | E.filename()
-  def installed(exe) when is_exe(exe), do: exe |> to_string() |> System.find_executable()
+  def installed(exe) when is_exe(exe), do: Exa.System.installed(exe)
 
   @doc """
   Ensure that target executable is installed and accessible 
   on the OS command line (PATH), otherwise raise an error.
   """
   @spec ensure_installed!(exe()) :: E.filename()
-  def ensure_installed!(exe) when is_exe(exe) do
-    case installed(exe) do
-      nil ->
-        msg = "Cannot find '#{exe}' executable"
-        Logger.error(msg)
-        raise RuntimeError, message: msg
-
-      exe ->
-        exe
-    end
-  end
+  def ensure_installed!(exe) when is_exe(exe), do: Exa.System.ensure_installed!(exe)
 
   @doc """
   Get information about the content of a video file.
