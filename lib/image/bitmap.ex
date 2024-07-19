@@ -245,12 +245,13 @@ defmodule Exa.Image.Bitmap do
   Rows end with a single newline.
   """
   @spec to_ascii(%I.Bitmap{}, char(), char()) :: String.t()
-  def to_ascii(%I.Bitmap{} = bmp, fg \\ ?X, bg \\ ?.) do
+  def to_ascii(%I.Bitmap{} = bmp, fg \\ ?X, bg \\ ?.) when is_char(fg) and is_char(bg) do
     out =
-      reduce(bmp, <<>>, fn i, j, b, out ->
-        c = if b === 0, do: bg, else: fg
-        out = if i == 0 and j > 0, do: <<out::binary, ?\n>>, else: out
-        <<out::binary, c>>
+      reduce(bmp, <<>>, fn
+        0, j, 0, out when j > 0 -> <<out::binary, ?\n, bg>>
+        0, j, 1, out when j > 0 -> <<out::binary, ?\n, fg>>
+        _, _, 0, out -> <<out::binary, bg>>
+        _, _, 1, out -> <<out::binary, fg>>
       end)
 
     <<out::binary, ?\n>>
@@ -304,9 +305,9 @@ defmodule Exa.Image.Bitmap do
     Pixel.valid!(pix, bg)
 
     buf =
-      reduce(bmp, <<>>, fn _i, _j, b, out ->
-        col = if b === 0, do: bg, else: fg
-        Colorb.append_bin(out, pix, col)
+      reduce(bmp, <<>>, fn
+        _i, _j, 0, out -> Colorb.append_bin(out, pix, bg)
+        _i, _j, 1, out -> Colorb.append_bin(out, pix, fg)
       end)
 
     Image.new(w, h, pix, buf)
