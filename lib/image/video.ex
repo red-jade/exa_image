@@ -44,7 +44,11 @@ defmodule Exa.Image.Video do
     "ss",
     "start_number",
     "t",
-    "vf"
+    "x",
+    "y",
+    "vf",
+    "volume",
+    "window_title"
   ]
 
   # ------------
@@ -121,23 +125,20 @@ defmodule Exa.Image.Video do
   @spec info(E.filename(), E.options()) :: J.object() | {:error, any()}
   def info(vfile, opts) when is_filename(vfile) do
     ensure_installed!(:ffprobe)
+    ensure_file!(vfile)
 
-    if not File.exists?(vfile) do
-      msg = "Video file does not exist: #{vfile}"
-      Logger.error(msg)
-      {:error, msg}
-    else
-      ents = ["-of", "json", "-show_format", "-show_streams"]
-      args = ents ++ options(opts) ++ [vfile]
+    ents = ["-of", "json", "-show_format", "-show_streams"]
+    args = ents ++ options(opts) ++ [vfile]
 
-      case System.cmd("ffprobe", args, []) do
-        {output, 0} ->
-          JsonReader.decode(output, object: Map)
+    Logger.info(Enum.join(["ffprobe" | args], " "))
 
-        {msg, status} when status > 0 ->
-          Logger.error("ffprobe failed [#{status}]: " <> inspect(msg))
-          {:error, msg}
-      end
+    case System.cmd("ffprobe", args, []) do
+      {output, 0} ->
+        JsonReader.decode(output, object: Map)
+
+      {msg, status} when status > 0 ->
+        Logger.error("ffprobe failed [#{status}]: " <> inspect(msg))
+        {:error, msg}
     end
   rescue
     err ->
@@ -153,7 +154,8 @@ defmodule Exa.Image.Video do
   https://ffmpeg.org/ffmpeg.html
 
   Except that the standalone _overwrite_ options `-y` and `-n` 
-  must be specified as a kv pair in the keyword options list.<br>
+  must be specified as a kv pair in the keyword options list.
+
   For example: `... overwrite: "y", ...`
 
   Keyword keys must be atoms,
@@ -180,6 +182,8 @@ defmodule Exa.Image.Video do
 
     args = options(opts) ++ [vfile]
 
+    Logger.info(Enum.join(["ffmpeg" | args], " "))
+
     case System.cmd("ffmpeg", args, []) do
       {"", 0} ->
         :ok
@@ -194,6 +198,59 @@ defmodule Exa.Image.Video do
       {:error, err}
   end
 
+  @doc """
+  Play a video from file in a pop-up viewer window.
+
+  Keyword options follow the command line interface:
+
+  https://ffmpeg.org/ffplay.html
+
+  Except that the standalone `noborder` and `fs` options  
+  must be specified as `"y"` or `"n"` in the keyword options list.
+
+  For example: `... noborder: "y", ...`
+
+  If the `loglevel` is not set in the options argument, 
+  it is set automatically from the Elixir `Logger.level()`.
+  """
+  @spec play(E.filename(), E.options()) :: :ok | {:error, any()}
+  def play(vfile, opts) when is_filename(vfile) do
+    IO.puts("play")
+    ensure_installed!(:ffplay)
+    ensure_file!(vfile)
+
+    {_dir, name, types} = Exa.File.split(vfile)
+
+    if Logger.compare_levels(Logger.level(), :error) == :lt do
+      # use filetype, not fmt option
+      type = List.last(types)
+      Logger.info("Play #{String.upcase(type)} file: '#{name}.#{type}'", file: vfile)
+    end
+    
+    defs = ["-window_title", name, "-showmode", "video", "-alwaysontop"]
+    args = options(opts) ++ defs ++ [vfile]
+
+    Logger.info(Enum.join(["ffplay" | args], " "))
+    IO.puts("cmd")
+
+    case System.cmd("ffplay", args, []) do
+      {"", 0} ->
+        :ok
+
+      {msg, status} when status > 0 ->
+        Logger.error("ffplay failed [#{status}]: " <> inspect(msg))
+        {:error, msg}
+    end
+  rescue
+    err ->
+      Logger.error("ffplay error: " <> inspect(err))
+      {:error, err}
+  end
+
+  # -----------------
+  # private functions
+  # -----------------
+
   # convert keyword input options to command line arguments
 
   @spec options(Keyword.t()) :: [String.t()]
@@ -206,6 +263,8 @@ defmodule Exa.Image.Video do
           case to_string(k) do
             "loglevel" -> args
             "overwrite" when v in ["y", "n"] -> ["-#{v}" | args]
+            "noborder" -> if v == "y", do: ["-#{k}" | args], else: args
+            "fs" -> if v == "y", do: ["-#{k}" | args], else: args
             kstr when kstr in @options -> ["-#{kstr}", "#{v}" | args]
             _ -> args
           end
@@ -231,4 +290,15 @@ defmodule Exa.Image.Video do
   defp level(:info), do: "warning"
   defp level(:debug), do: "debug"
   defp level(:all), do: "trace"
+
+  # TODO - use version in Exa.File after roll of Exa core version
+
+  defp ensure_file!(file) do
+    if not File.exists?(file) do
+      dne = "File does not exist"
+      msg = dne <> ": '#{file}'"
+      Logger.error(msg, file: file)
+      raise File.Error, path: file, action: dne
+    end
+  end
 end
