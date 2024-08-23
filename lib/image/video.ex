@@ -171,7 +171,7 @@ defmodule Exa.Image.Video do
   @spec from_files(E.filename(), E.options()) :: :ok | {:error, any()}
   def from_files(vfile, opts) when is_filename(vfile) do
     ensure_installed!(:ffmpeg)
-    Exa.File.ensure_dir!(vfile)
+    Exa.File.ensure_parent!(vfile)
 
     if Logger.compare_levels(Logger.level(), :error) == :lt do
       # use filetype, not fmt option
