@@ -1,4 +1,4 @@
-## EXA Image
+# EXA Image
 
 𝔼𝕏tr𝔸 𝔼li𝕏ir 𝔸dditions (𝔼𝕏𝔸)
 
@@ -8,7 +8,7 @@ Core utilities for 2D bitmaps, images and video.
 
 Module path: `Exa.Image`
 
-### Features
+## Features
 
 Bitmap:
 
@@ -35,7 +35,12 @@ Video (only if [ffmpeg](https://ffmpeg.org/download.html) is installed):
 - create video from image files
 - probe video for information
 
-### E3D License
+## Building
+
+To bootstrap an `exa_xxx` library build, 
+you must run `mix deps.get` twice.
+
+## E3D License
 
 The image subset of E3D was copied (forked) 
 from the Wings3D repo on 23 November 2023 (v2.3):
@@ -49,7 +54,7 @@ See source file headers for author credit and copyright:
 All files are:<br>
 Copyright (c) Dan Gudmundsson
 
-### License
+## EXA License
 
 EXA source code is released under the MIT license.
 
