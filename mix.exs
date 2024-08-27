@@ -7,9 +7,8 @@ defmodule Exa.Image.MixProject do
 
   # umbrella project
   @exa {:exa,
-        #git: "https://github.com/red-jade/exa.git",
-        #branch: "main",
-        path: "../exa",
+        git: "https://github.com/red-jade/exa.git",
+        branch: "main",
         only: [:dev, :test],
         runtime: false}
 
