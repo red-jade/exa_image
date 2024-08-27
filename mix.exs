@@ -3,12 +3,13 @@ defmodule Exa.Image.MixProject do
   
   @lib  :exa_image
   @name "Exa Image"
-  @ver  "0.2.1"
+  @ver  "0.2.2"
 
   # umbrella project
   @exa {:exa,
-        git: "https://github.com/red-jade/exa.git",
-        branch: "main",
+        #git: "https://github.com/red-jade/exa.git",
+        #branch: "main",
+        path: "../exa",
         only: [:dev, :test],
         runtime: false}
 
@@ -31,7 +32,7 @@ defmodule Exa.Image.MixProject do
       app: @lib,
       name: @name,
       version: @ver,
-      elixir: "~> 1.15",
+      elixir: "~> 1.17",
       erlc_options: [:verbose, :report_errors, :report_warnings, :export_all],
       start_permanent: Mix.env() == :prod,
       deps: [@exa|exa_deps] ++ local_deps(),

@@ -32,11 +32,11 @@ defmodule Exa.Image.ConvolveTest do
   }
 
   test "min" do
-    assert 0.05 = minimum(@blur_kernel3)
-    assert 0.01 = minimum(@blur_kernel5)
+    assert 0.05 == minimum(@blur_kernel3)
+    assert 0.01 == minimum(@blur_kernel5)
 
     assert 1.0 == minimum(@int_kernel3)
-    assert 0.0 = minimum(@bad_kernel3)
+    assert 0.0 == minimum(@bad_kernel3)
   end
 
   test "max" do
@@ -67,7 +67,7 @@ defmodule Exa.Image.ConvolveTest do
              {0.05, 0.1, 0.05},
              {0.1, 0.4, 0.1},
              {0.05, 0.1, 0.05}
-           } = norm_int
+           } == norm_int
 
     norm_bad = normalize(@bad_kernel3)
     assert 1.0 == Math.fp_round(sum(norm_bad))
@@ -76,6 +76,6 @@ defmodule Exa.Image.ConvolveTest do
              {0.3, 0.0, 0.3},
              {0.05, 0.15, 0.05},
              {0.05, 0.05, 0.05}
-           } = kern_round(norm_bad)
+           } == kern_round(norm_bad)
   end
 end
