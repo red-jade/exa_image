@@ -11,7 +11,7 @@ defmodule Exa.Image.Image3Test do
   alias Exa.Space.BBox2i
   alias Exa.Color.Col3b
   alias Exa.Color.Col3f
-  alias Exa.Color.Col3Name
+  alias Exa.Color.Col3name
   alias Exa.Color.Colormap3b
 
   alias Exa.Image.Resize
@@ -25,7 +25,7 @@ defmodule Exa.Image.Image3Test do
   @red Col3b.red()
   @green Col3b.green()
   @blue Col3b.blue()
-  @peru "peru" |> Col3Name.new() |> Col3Name.to_col3b()
+  @peru "peru" |> Col3name.new() |> Col3name.to_col3b()
 
   @in_png_dir ["test", "input", "image", "png"]
   @out_png_dir ["test", "output", "image", "png"]

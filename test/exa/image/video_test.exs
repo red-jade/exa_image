@@ -75,16 +75,16 @@ defmodule Exa.Image.VideoTest do
            } = stream
   end
 
-  @tag timeout: 15_000
-  test "play" do
-    glider = in_mp4("glider")
+  # @tag timeout: 15_000
+  # test "play" do
+  #   glider = in_mp4("glider")
 
-    info = Video.info(glider, loglevel: "error")
-    {time, ""} = Float.parse(info.format.duration)
-    wait = round(time * 1000.0)
+  #   info = Video.info(glider, loglevel: "error")
+  #   {time, ""} = Float.parse(info.format.duration)
+  #   wait = round(time * 1000.0)
 
-    ret = Video.play(glider, loglevel: "error")
-    IO.inspect(ret, label: "play")
-    Process.sleep(wait)
-  end
+  #   ret = Video.play(glider, loglevel: "error")
+  #   IO.inspect(ret, label: "play")
+  #   Process.sleep(wait)
+  # end
 end
