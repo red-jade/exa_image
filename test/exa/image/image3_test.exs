@@ -7,6 +7,7 @@ defmodule Exa.Image.Image3Test do
   alias Exa.Image.Types, as: I
 
   alias Exa.Std.Histo1D
+  alias Exa.Std.Histo2D
 
   alias Exa.Space.BBox2i
   alias Exa.Color.Col3b
@@ -42,6 +43,18 @@ defmodule Exa.Image.Image3Test do
   defp out_png(name), do: Exa.File.join(@out_png_dir, name, @filetype_png)
 
   defp in_ppm(name), do: Exa.File.join(@in_ppm_dir, name, @filetype_ppm)
+
+  @cmap Colormap3b.new([
+        Col3f.black(),
+        Col3f.gray(),
+        Col3f.white(),
+        Col3f.red(),
+        Col3f.green(),
+        Col3f.blue(),
+        Col3f.cyan(),
+        Col3f.magenta(),
+        Col3f.yellow()
+      ])
 
   # build an image in RGB format
   # but pixels are grayscale (all components equal)
@@ -250,16 +263,57 @@ defmodule Exa.Image.Image3Test do
 
   test "colormap" do
     Colormap3b.dark_red()
-    |> from_colormap(2, 100)
+    |> from_cmap(2, 100)
     |> ImageWriter.to_file(out_png("dred_cmap"))
 
     Colormap3b.sat_magenta()
-    |> from_colormap(2, 100)
+    |> from_cmap(2, 100)
     |> ImageWriter.to_file(out_png("smag_cmap"))
 
     Colormap3b.blue_white_red()
-    |> from_colormap(2, 100)
+    |> from_cmap(2, 100)
     |> ImageWriter.to_file(out_png("bwr_cmap"))
+  end
+
+  test "index and colormap" do
+    iximg = new(3, 3, :index, <<0, 1, 2, 3, 4, 5, 6, 7, 8>>)
+
+    assert {:colormap, :index, :rgb,
+            %{
+              0 => {0, 0, 0},
+              1 => {128, 128, 128},
+              2 => {255, 255, 255},
+              3 => {255, 0, 0},
+              4 => {0, 255, 0},
+              5 => {0, 0, 255},
+              6 => {0, 255, 255},
+              7 => {255, 0, 255},
+              8 => {255, 255, 0}
+            }} = @cmap
+
+    rgb = apply_cmap(iximg, @cmap)
+
+    assert %I.Image{
+             width: 3,
+             height: 3,
+             pixel: :rgb,
+             ncomp: 1,
+             row: 3,
+             buffer:
+               <<0, 0, 0, 128, 128, 128, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 255,
+                 255, 255, 0, 255, 255, 255, 0>>
+           } = rgb
+  end
+
+  test "histogram" do
+    # build histo with diagonal ramp populated
+    Enum.reduce(1..20, Histo2D.new(), fn i, h ->
+      Enum.reduce(1..i, h, fn _k, h -> Histo2D.inc(h, {i,i}) end)
+    end)
+    |> from_histo2d()
+    |> apply_cmap(Colormap3b.dark_red())
+    |> Resize.resize(8)
+    |> ImageWriter.to_file(out_png("diag_histo"))
   end
 
   test "bitmap alpha" do

@@ -1,13 +1,12 @@
 defmodule Exa.Image.Image1Test do
   use ExUnit.Case
+  use Exa.Image.Constants
 
   import Exa.Image.Image
   import Exa.Image.Resize
   alias Exa.Image.Types, as: I
 
   alias Exa.Color.Col1b
-  alias Exa.Color.Col3f
-  alias Exa.Color.Colormap3b
 
   # red green / blue peru
   @ramp new(
@@ -191,48 +190,12 @@ defmodule Exa.Image.Image1Test do
     assert @ramp == res
   end
 
-  test "index and colormap" do
-    iximg = new(3, 3, :index, <<0, 1, 2, 3, 4, 5, 6, 7, 8>>)
-
-    comap =
-      Colormap3b.new([
-        Col3f.black(),
-        Col3f.gray(),
-        Col3f.white(),
-        Col3f.red(),
-        Col3f.green(),
-        Col3f.blue(),
-        Col3f.cyan(),
-        Col3f.magenta(),
-        Col3f.yellow()
-      ])
-
-    assert {:colormap, :index, :rgb,
-            %{
-              0 => {0, 0, 0},
-              1 => {128, 128, 128},
-              2 => {255, 255, 255},
-              3 => {255, 0, 0},
-              4 => {0, 255, 0},
-              5 => {0, 0, 255},
-              6 => {0, 255, 255},
-              7 => {255, 0, 255},
-              8 => {255, 255, 0}
-            }} = comap
-
-    rgb = map_colors(iximg, comap)
-
-    assert %I.Image{
-             width: 3,
-             height: 3,
-             pixel: :rgb,
-             ncomp: 1,
-             row: 3,
-             buffer:
-               <<0, 0, 0, 128, 128, 128, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 255,
-                 255, 255, 0, 255, 255, 255, 0>>
-           } = rgb
-  end
+  # TODO - other colormap formats ...
+  # test "colormap to grayscale image" do
+  #   Colormap3b.dark_red() |> from_cmap(2, 100) |> ImageWriter.to_file(png("dred_cmap"))
+  #   Colormap3b.sat_magenta() |> from_cmap(2, 100) |> ImageWriter.to_file(png("smag_cmap"))
+  #   Colormap3b.blue_white_red() |> from_cmap(2, 100) |> ImageWriter.to_file(png("bwr_cmap"))
+  # end
 
   # # benchmark image access and processing ----------
 

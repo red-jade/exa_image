@@ -30,6 +30,7 @@ defmodule Exa.Image.Image do
   alias Exa.Binary
 
   alias Exa.Std.Histo1D
+  alias Exa.Std.Histo2D
 
   alias Exa.Space.BBox2i
   alias Exa.Space.Pos2i
@@ -39,10 +40,6 @@ defmodule Exa.Image.Image do
 
   alias Exa.Image.ImageReader
   alias Exa.Image.ImageWriter
-
-  # ----------------
-  # public functions
-  # ----------------
 
   # -----
   # files
@@ -134,9 +131,9 @@ defmodule Exa.Image.Image do
     get_subimage(img, pos, dims)
   end
 
-  # -------------------
-  # colormap conversion
-  # -------------------
+  # ------------------
+  # colormap & histo2d
+  # ------------------
 
   @doc """
   Convert a colormap to an RGB image.
@@ -157,34 +154,107 @@ defmodule Exa.Image.Image do
   `upsize` is y scale factor. Image height = imax*upsize.
   `dimension` is width. Image width = size.
   """
-  @spec from_colormap(C.colormap3b(), pos_integer(), I.size(), I.orient()) :: %I.Image{}
-  def from_colormap(colormap, upsize, size, orient \\ :horizontal)
+  @spec from_cmap(C.colormap(), pos_integer(), I.size(), I.orient()) :: %I.Image{}
+  def from_cmap(colormap, upsize, size, orient \\ :horizontal)
 
-  def from_colormap({:colormap, :index, :rgb, cmap}, wfac, h, :horizontal)
-      when is_size(wfac) and is_size(h) do
+  def from_cmap({:colormap, :index, pix, cmap}, wfac, h, :horizontal)
+      when is_size(wfac) and is_size(h) and is_pix(pix) do
     imax = map_size(cmap)
 
     row =
       Enum.reduce(0..(imax - 1), <<>>, fn i, buf ->
-        chunk = cmap |> Map.fetch!(i) |> Colorb.to_bin(:rgb) |> :binary.copy(wfac)
+        chunk = cmap |> Map.fetch!(i) |> Colorb.to_bin(pix) |> :binary.copy(wfac)
         <<buf::binary, chunk::binary>>
       end)
 
-    new(wfac * imax, h, :rgb, :binary.copy(row, h))
+    new(wfac * imax, h, pix, :binary.copy(row, h))
   end
 
-  def from_colormap({:colormap, :index, :rgb, cmap}, hfac, w, :vertical)
-      when is_size(w) and is_size(hfac) do
-    imax = map_size(cmap) - 1
+  def from_cmap({:colormap, :index, pix, cmap}, hfac, w, :vertical)
+      when is_size(w) and is_size(hfac) and is_pix(pix) do
+    imax = map_size(cmap)
 
     buf =
       Enum.reduce(0..(imax - 1), <<>>, fn i, buf ->
-        row = cmap |> Map.fetch!(i) |> Colorb.to_bin(:rgb) |> :binary.copy(w)
+        row = cmap |> Map.fetch!(i) |> Colorb.to_bin(pix) |> :binary.copy(w)
         chunk = :binary.copy(row, hfac)
         <<buf::binary, chunk::binary>>
       end)
 
-    new(w, hfac * imax, :rgb, buf)
+    new(w, hfac * imax, pix, buf)
+  end
+
+  @doc """
+  Expand an indexed image using a colormap.
+
+  Any index above the range of the colormap
+  will be mapped to the final color (highest index).
+
+  The output will be a color image
+  with the colormap's target pixel format.
+
+  If the colormap argument is the atom `:gray`,
+  the mapping is equivalent to a no-op linear grayscale ramp.
+  The same image data is returned with the pixel format 
+  changed from `:index` to `:gray`.
+  """
+  @spec apply_cmap(%I.Image{}, :gray | C.colormap()) :: %I.Image{}
+
+  def apply_cmap( %I.Image{pixel: :index}=img, :gray ) do
+    %I.Image{img | pixel: :gray}
+  end
+
+  def apply_cmap(%Image{pixel: :index} = img, {:colormap, :index, dst, cmap}) do
+    # colormap must be complete range 0..indmax
+    indmax = map_size(cmap) - 1
+    cmap_fun = fn index -> Map.fetch!(cmap, Exa.Math.clamp_(0,index,indmax)) end
+    map_pixels(img, {:index, cmap_fun, dst})
+  end
+
+  @doc """
+  Convert a non-empty 2D histogram to an indexed image.
+
+  The dimensions of the image are determined by 
+  the extent of the histogram 2D.
+  The image dimension is the maximum histogram coordinate
+  that has a positive non-zero value.
+
+  Counts are normalized to indexes in the range 0-255.
+  The scaling is linear.
+  Any negative counts are clamped to 0.
+
+  The `maximum` argument is used to scale the count values,
+  so that the maximum value corresponds to index 255.
+  Counts above the maximum are clamped to 255.
+  If the `maximum` argument is `nil` (default)
+  the actual maximum count value is used (no clamping).
+
+  If the histogram is empty, with all counts 0,
+  then the image will be full of index 0.
+
+  Use `apply_cmap/2` with a colormap to convert 
+  the indexed image to a color image. 
+  """
+  @spec from_histo2d(H.histo2d(), nil | E.count1()) :: %I.Image{}
+  def from_histo2d(histo, max_count \\ nil)
+
+  def from_histo2d(histo, nil) do
+    from_histo2d(histo, histo |> Histo2D.max_count() |> max(1))
+  end
+
+  def from_histo2d(histo, max_count) when histo != %{} and is_count1(max_count) do
+    {imax, jmax} = Histo2D.size(histo)
+
+    buf =
+      Enum.reduce(0..jmax, <<>>, fn j, buf ->
+        Enum.reduce(0..imax, buf, fn i, buf ->
+          count = Histo2D.get(histo, {i,j})
+          index = Exa.Convert.f2b(count/max_count)
+          <<buf::binary, index>>
+        end)
+      end)
+
+    new(imax+1, jmax+1, :index, buf)
   end
 
   # -------------
@@ -684,17 +754,6 @@ defmodule Exa.Image.Image do
         |> Enum.map(fn {w, pos} -> {w, get_pixel(img, pos)} end)
         |> Colorf.blend()
     end
-  end
-
-  @doc """
-  Expand an indexed image by looking up colors in a colormap.
-  The final image will have a pixel shape 
-  determined by the values of the colormap. 
-  Typically, the output will be 3-byte RGB or 4-byte RGBA.
-  """
-  @spec map_colors(%Image{}, C.colormap()) :: %Image{}
-  def map_colors(%Image{pixel: :index} = img, {:colormap, :index, dst, cmap}) do
-    map_pixels(img, {:index, &Map.fetch!(cmap, &1), dst})
   end
 
   @doc """
