@@ -306,7 +306,7 @@ defmodule Exa.Image.Convolve do
             {cvec, cache} = subimage_1xN(img, i + 1, j, w, h, k, cache)
             sub = slide(sub, cvec)
             col = tile_fun.(sub)
-            out = Colorb.append_bin(out, pix, col)
+            out = Colorb.append_bin(pix, out, col)
             {sub, cache, out}
           end)
 

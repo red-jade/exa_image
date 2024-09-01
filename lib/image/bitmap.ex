@@ -306,8 +306,8 @@ defmodule Exa.Image.Bitmap do
 
     buf =
       reduce(bmp, <<>>, fn
-        _i, _j, 0, out -> Colorb.append_bin(out, pix, bg)
-        _i, _j, 1, out -> Colorb.append_bin(out, pix, fg)
+        _i, _j, 0, out -> Colorb.append_bin(pix, out, bg)
+        _i, _j, 1, out -> Colorb.append_bin(pix, out, fg)
       end)
 
     Image.new(w, h, pix, buf)

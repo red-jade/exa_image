@@ -163,7 +163,7 @@ defmodule Exa.Image.Image do
 
     row =
       Enum.reduce(0..(imax - 1), <<>>, fn i, buf ->
-        chunk = cmap |> Map.fetch!(i) |> Colorb.to_bin(pix) |> :binary.copy(wfac)
+        chunk = pix |> Colorb.to_bin(Map.fetch!(cmap,i))  |> :binary.copy(wfac)
         <<buf::binary, chunk::binary>>
       end)
 
@@ -176,7 +176,7 @@ defmodule Exa.Image.Image do
 
     buf =
       Enum.reduce(0..(imax - 1), <<>>, fn i, buf ->
-        row = cmap |> Map.fetch!(i) |> Colorb.to_bin(pix) |> :binary.copy(w)
+        row = pix |> Colorb.to_bin(Map.fetch!(cmap,i)) |> :binary.copy(w)
         chunk = :binary.copy(row, hfac)
         <<buf::binary, chunk::binary>>
       end)
@@ -269,7 +269,7 @@ defmodule Exa.Image.Image do
   def get_pixel(%Image{pixel: pix, ncomp: ncomp, buffer: buf} = img, pos) when is_pos2i(pos) do
     in_bounds!(img, pos)
     lead = addr(img, pos)
-    buf |> binary_part(lead, ncomp) |> Colorb.from_bin(pix) |> elem(0)
+    pix |> Colorb.from_bin(binary_part(buf, lead, ncomp)) |> elem(0)
   end
 
   @doc "Get the sequence of pixels in an image."
@@ -279,7 +279,7 @@ defmodule Exa.Image.Image do
   defp do_pix(<<>>, _pix, pixels), do: Enum.reverse(pixels)
 
   defp do_pix(bin, pix, pixels) do
-    {col, rest} = Colorb.from_bin(bin, pix)
+    {col, rest} = Colorb.from_bin(pix, bin)
     do_pix(rest, pix, [col | pixels])
   end
 
@@ -370,8 +370,8 @@ defmodule Exa.Image.Image do
     in_bounds!(img, pos)
     lead = addr(img, pos)
     tail = tail(img, pos)
-    pre = imgbuf |> binary_part(0, lead) |> Colorb.append_bin(pix, col)
-    post = imgbuf |> binary_part(lead + ncomp, tail - ncomp)
+    pre = Colorb.append_bin(pix, binary_part(imgbuf, 0, lead), col)
+    post = binary_part(imgbuf, lead + ncomp, tail - ncomp)
     %Image{img | :buffer => <<pre::binary, post::binary>>}
   end
 
@@ -601,9 +601,9 @@ defmodule Exa.Image.Image do
           Enum.reduce(0..(w - 1), {browbuf, irowbuf, out}, fn
             _, {<<b::1, browrest::bits>>, irowbuf, out} ->
               a = if b == 0, do: 0, else: 255
-              {col, irowrest} = Colorb.from_bin(irowbuf, img_pix)
+              {col, irowrest} = Colorb.from_bin(img_pix, irowbuf)
               cola = Pixel.add_alpha(col, a, out_pix)
-              out = Colorb.append_bin(out, out_pix, cola)
+              out = Colorb.append_bin(out_pix, out, cola)
               {browrest, irowrest, out}
           end)
 
@@ -639,10 +639,10 @@ defmodule Exa.Image.Image do
         {_bpad, <<>>, <<>>, out} =
           Enum.reduce(0..(w - 1), {browbuf, i1rowbuf, i2rowbuf, out}, fn
             _, {<<b::1, browrest::bits>>, i1rowbuf, i2rowbuf, out} ->
-              {col1, i1rowrest} = Colorb.from_bin(i1rowbuf, pix)
-              {col2, i2rowrest} = Colorb.from_bin(i2rowbuf, pix)
+              {col1, i1rowrest} = Colorb.from_bin(pix, i1rowbuf)
+              {col2, i2rowrest} = Colorb.from_bin(pix, i2rowbuf)
               col = if b == 0, do: col2, else: col1
-              out = Colorb.append_bin(out, pix, col)
+              out = Colorb.append_bin(pix, out, col)
               {browrest, i1rowrest, i2rowrest, out}
           end)
 
@@ -670,8 +670,8 @@ defmodule Exa.Image.Image do
   """
   @spec alpha_blend(src :: %I.Image{}, dst :: %I.Image{}, C.blend_mode()) :: %I.Image{}
   def alpha_blend(
-        %I.Image{width: w, height: h, pixel: src_pix, row: src_row, buffer: srcbuf},
-        %I.Image{width: w, height: h, pixel: dst_pix, row: dst_row, buffer: dstbuf},
+        %I.Image{width: w, height: h, pixel: src_pix, row: src_row, buffer: sbuf},
+        %I.Image{width: w, height: h, pixel: dst_pix, row: dst_row, buffer: dbuf},
         mode
       ) do
     # could optimize this for images that have no row padding
@@ -679,21 +679,20 @@ defmodule Exa.Image.Image do
     # buy this structure will support row padding in the future 
     # (e.g. 10- or 12-bit colors)
     {<<>>, <<>>, out} =
-      Enum.reduce(0..(h - 1), {srcbuf, dstbuf, <<>>}, fn _, {srcbuf, dstbuf, out} ->
-        {srcrowbuf, srcrest} = Binary.take(srcbuf, src_row)
-        {dstrowbuf, dstrest} = Binary.take(dstbuf, dst_row)
+      Enum.reduce(0..(h - 1), {sbuf, dbuf, <<>>}, fn _, {sbuf, dbuf, out} ->
+        {srbuf, srest} = Binary.take(sbuf, src_row)
+        {drbuf, drest} = Binary.take(dbuf, dst_row)
 
         {<<>>, <<>>, out} =
-          Enum.reduce(0..(w - 1), {srcrowbuf, dstrowbuf, out}, fn _,
-                                                                  {srcrowbuf, dstrowbuf, out} ->
-            {src, srcrowrest} = Colorb.from_bin(srcrowbuf, src_pix)
-            {dst, dstrowrest} = Colorb.from_bin(dstrowbuf, dst_pix)
+          Enum.reduce(0..(w - 1), {srbuf, drbuf, out}, fn _, {srbuf, drbuf, out} ->
+            {src, srrest} = Colorb.from_bin(src_pix, srbuf)
+            {dst, drrest} = Colorb.from_bin(dst_pix, drbuf)
             col = Pixel.alpha_blend(src, src_pix, dst, dst_pix, mode)
-            out = Colorb.append_bin(out, dst_pix, col)
-            {srcrowrest, dstrowrest, out}
+            out = Colorb.append_bin(dst_pix, out, col)
+            {srrest, drrest, out}
           end)
 
-        {srcrest, dstrest, out}
+        {srest, drest, out}
       end)
 
     new(w, h, dst_pix, out)
@@ -787,8 +786,8 @@ defmodule Exa.Image.Image do
   defp map_pixbuf(<<>>, _pixfun, out), do: out
 
   defp map_pixbuf(buf, {src_pix, pix_fun, dst_pix}, out) do
-    {col, rest} = Colorb.from_bin(buf, src_pix)
-    out = Colorb.append_bin(out, dst_pix, pix_fun.(col))
+    {col, rest} = Colorb.from_bin(src_pix, buf)
+    out = Colorb.append_bin(dst_pix, out, pix_fun.(col))
     map_pixbuf(rest, {src_pix, pix_fun, dst_pix}, out)
   end
 
@@ -812,7 +811,7 @@ defmodule Exa.Image.Image do
   defp reduce_pixbuf(<<>>, _pix, _pixfun, out), do: out
 
   defp reduce_pixbuf(buf, pix, fun, out) do
-    {col, rest} = Colorb.from_bin(buf, pix)
+    {col, rest} = Colorb.from_bin(pix, buf)
     reduce_pixbuf(rest, pix, fun, fun.(col, pix, out))
   end
 
@@ -859,7 +858,7 @@ defmodule Exa.Image.Image do
   @spec clear(I.size(), I.size(), C.pixel(), C.colorb()) :: binary()
   defp clear(w, h, pix, col) do
     true = is_colorb(col, Pixel.ncomp(pix))
-    Enum.reduce(1..(w * h), <<>>, fn _, buf -> Colorb.append_bin(buf, pix, col) end)
+    Enum.reduce(1..(w * h), <<>>, fn _, buf -> Colorb.append_bin(pix, buf, col) end)
   end
 
   # byte offset address (1-based prefix length) of a position in the buffer
