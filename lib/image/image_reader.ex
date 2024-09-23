@@ -19,7 +19,7 @@ defmodule Exa.Image.ImageReader do
   Use the filetype to determine the type.
   """
   @spec from_file(String.t()) :: %I.Image{}
-  def from_file(filename) when is_nonempty_string(filename) do
+  def from_file(filename) when is_string_nonempty(filename) do
     {_dir, name, [_ | _] = types} = Exa.File.split(filename)
     type = List.last(types)
 

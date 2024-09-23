@@ -17,7 +17,7 @@ defmodule Exa.Image.PortableReader do
   Read a PBM/PGM/PBM file.
   """
   @spec from_file(String.t()) :: %I.Image{}
-  def from_file(filename) when is_nonempty_string(filename) do
+  def from_file(filename) when is_string_nonempty(filename) do
     filename |> Exa.File.from_file_binary() |> parse()
   end
 

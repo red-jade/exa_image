@@ -3,7 +3,7 @@ defmodule Exa.Image.MixProject do
   
   @lib  :exa_image
   @name "Exa Image"
-  @ver  "0.2.4"
+  @ver  "0.2.5"
 
   # umbrella project
   @exa {:exa,

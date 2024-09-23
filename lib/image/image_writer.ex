@@ -24,7 +24,7 @@ defmodule Exa.Image.ImageWriter do
   or there is any failure.
   """
   @spec to_file(%I.Image{}, String.t()) :: :ok
-  def to_file(img, filename) when is_nonempty_string(filename) do
+  def to_file(img, filename) when is_string_nonempty(filename) do
     {dir, name, types} = Exa.File.split(filename)
     File.ensure_dir!(dir)
     type = List.last(types)

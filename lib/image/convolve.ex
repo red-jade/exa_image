@@ -170,7 +170,7 @@ defmodule Exa.Image.Convolve do
 
   @spec local_fun(fun(), fun(), fun(), fun()) :: tile_fun()
   defp local_fun(fmeasure, fthreshold, fdecision, fexpand) do
-    fn %I.Image{width: n, height: n} = sub when is_odd(n) ->
+    fn %I.Image{width: n, height: n} = sub when is_int_odd(n) ->
       sub
       |> Image.map_pixels(fmeasure)
       |> Map.fetch!(:buffer)

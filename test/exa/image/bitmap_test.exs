@@ -76,7 +76,7 @@ defmodule Exa.Image.BitmapTest do
            } = white
 
     # use a predicate to recreate the chessboard: is sum odd
-    chess = new(4, 4, fn {i, j} -> is_odd(i + j) end)
+    chess = new(4, 4, fn {i, j} -> is_int_odd(i + j) end)
     assert %I.Bitmap{width: 4, height: 4, row: 1, buffer: @chess_bytes} = chess
   end
 
