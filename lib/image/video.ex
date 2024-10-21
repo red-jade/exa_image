@@ -226,7 +226,7 @@ defmodule Exa.Image.Video do
       type = List.last(types)
       Logger.info("Play #{String.upcase(type)} file: '#{name}.#{type}'", file: vfile)
     end
-    
+
     defs = ["-window_title", name, "-showmode", "video", "-alwaysontop"]
     args = options(opts) ++ defs ++ [vfile]
 
