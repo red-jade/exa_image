@@ -26,6 +26,7 @@ Image:
 - convolve kernels over subimages
 - downsize, upsize and resize (integer multiple only)
 - split and merge for chunked parallel processing
+- parallel map over pixels 
 
 Image I/O:
 - fork of E3D to read/write PNG/TIF/BMP formats
@@ -39,6 +40,21 @@ Video (only if [ffmpeg](https://ffmpeg.org/download.html) is installed):
 
 To bootstrap an `exa_xxx` library build, 
 you must run `mix deps.get` twice.
+
+## Benchmarks
+
+Exa uses _Benchee_ for performancee testing.
+
+Test results are stored under `test/bench/*.benchee`.
+The current _latest_ baseline and previous results are checked-in.
+
+Run the benchmarks and compare with latest result:
+
+`$ mix test --only benchmark:true`
+
+To run specific benchmark test, for example:
+
+`$ mix test --only benchmark:true test/exa/image/image_test.exs`
 
 ## E3D License
 
