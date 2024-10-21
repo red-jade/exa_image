@@ -24,6 +24,9 @@ defmodule Exa.Image.Constants do
       # there is no interface to read/write GIF
       # except the video interface for ffmpeg
       @filetype_gif "gif"
+
+      # default timeout for parallel image ops
+      @para_timeout 20_000
     end
   end
 end

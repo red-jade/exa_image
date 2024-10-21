@@ -163,7 +163,7 @@ defmodule Exa.Image.Image do
 
     row =
       Enum.reduce(0..(imax - 1), <<>>, fn i, buf ->
-        chunk = pix |> Colorb.to_bin(Map.fetch!(cmap,i))  |> :binary.copy(wfac)
+        chunk = pix |> Colorb.to_bin(Map.fetch!(cmap, i)) |> :binary.copy(wfac)
         <<buf::binary, chunk::binary>>
       end)
 
@@ -176,7 +176,7 @@ defmodule Exa.Image.Image do
 
     buf =
       Enum.reduce(0..(imax - 1), <<>>, fn i, buf ->
-        row = pix |> Colorb.to_bin(Map.fetch!(cmap,i)) |> :binary.copy(w)
+        row = pix |> Colorb.to_bin(Map.fetch!(cmap, i)) |> :binary.copy(w)
         chunk = :binary.copy(row, hfac)
         <<buf::binary, chunk::binary>>
       end)
@@ -200,14 +200,14 @@ defmodule Exa.Image.Image do
   """
   @spec apply_cmap(%I.Image{}, :gray | C.colormap()) :: %I.Image{}
 
-  def apply_cmap( %I.Image{pixel: :index}=img, :gray ) do
+  def apply_cmap(%I.Image{pixel: :index} = img, :gray) do
     %I.Image{img | pixel: :gray}
   end
 
   def apply_cmap(%Image{pixel: :index} = img, {:colormap, :index, dst, cmap}) do
     # colormap must be complete range 0..indmax
     indmax = map_size(cmap) - 1
-    cmap_fun = fn index -> Map.fetch!(cmap, Exa.Math.clamp_(0,index,indmax)) end
+    cmap_fun = fn index -> Map.fetch!(cmap, Exa.Math.clamp_(0, index, indmax)) end
     map_pixels(img, {:index, cmap_fun, dst})
   end
 
@@ -248,13 +248,13 @@ defmodule Exa.Image.Image do
     buf =
       Enum.reduce(0..jmax, <<>>, fn j, buf ->
         Enum.reduce(0..imax, buf, fn i, buf ->
-          count = Histo2D.get(histo, {i,j})
-          index = Exa.Convert.f2b(count/max_count)
+          count = Histo2D.get(histo, {i, j})
+          index = Exa.Convert.f2b(count / max_count)
           <<buf::binary, index>>
         end)
       end)
 
-    new(imax+1, jmax+1, :index, buf)
+    new(imax + 1, jmax + 1, :index, buf)
   end
 
   # -------------
@@ -753,6 +753,34 @@ defmodule Exa.Image.Image do
         |> Enum.map(fn {w, pos} -> {w, get_pixel(img, pos)} end)
         |> Colorf.blend()
     end
+  end
+
+  @doc """
+  Parallel version of `map_pixels/2`.
+
+  The image is split into _n_ fragments, 
+  each containing a whole number of rows.
+  A process is spawned to apply the 
+  pixel function to each fragment.
+  The results are merged in order, 
+  to assemble the final transformed image.
+
+  The default number of processes is 
+  the number of hardware threads available.
+
+  The timeout is the allowed duration (ms).
+
+  Note the result uses ok/error/timeout tuples.
+  """
+  @spec pmap_pixels(%I.Image{}, C.pixel_fun(), I.npara(), E.timeout1()) :: E.tresult(%I.Image{})
+  def pmap_pixels(%I.Image{} = img, pixfun, n \\ :nproc, timeout \\ @para_timeout) do
+    img
+    |> split_n(n)
+    |> Exa.Exec.pmap_chain(
+      &map_pixels(&1, pixfun),
+      &merge([&2, &1]),
+      timeout
+    )
   end
 
   @doc """

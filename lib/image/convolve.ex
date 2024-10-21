@@ -285,7 +285,7 @@ defmodule Exa.Image.Convolve do
   """
   @spec map_convolve(%I.Image{}, I.size(), tile_fun()) :: %I.Image{}
   def map_convolve(%I.Image{width: w, height: h, pixel: pix} = img, n, tile_fun)
-      when div(n, 2) == 1 and is_function(tile_fun, 1) do
+      when is_int_odd(n) and is_function(tile_fun, 1) do
     k = div(n, 2)
 
     buf =

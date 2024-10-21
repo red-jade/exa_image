@@ -17,7 +17,6 @@ defmodule Exa.Image.Image3Test do
 
   alias Exa.Image.Resize
   alias Exa.Image.Convolve
-  alias Exa.Image.ImagePara
   alias Exa.Image.ImageWriter
   alias Exa.Image.Bitmap
 
@@ -45,16 +44,16 @@ defmodule Exa.Image.Image3Test do
   defp in_ppm(name), do: Exa.File.join(@in_ppm_dir, name, @filetype_ppm)
 
   @cmap Colormap3b.new([
-        Col3f.black(),
-        Col3f.gray(),
-        Col3f.white(),
-        Col3f.red(),
-        Col3f.green(),
-        Col3f.blue(),
-        Col3f.cyan(),
-        Col3f.magenta(),
-        Col3f.yellow()
-      ])
+          Col3f.black(),
+          Col3f.gray(),
+          Col3f.white(),
+          Col3f.red(),
+          Col3f.green(),
+          Col3f.blue(),
+          Col3f.cyan(),
+          Col3f.magenta(),
+          Col3f.yellow()
+        ])
 
   # build an image in RGB format
   # but pixels are grayscale (all components equal)
@@ -239,6 +238,18 @@ defmodule Exa.Image.Image3Test do
            } = pale
   end
 
+  test "parallel map pixels" do
+    mandrill = @mandrill |> in_ppm() |> from_file()
+
+    gray = map_pixels(mandrill, &Col3b.to_gray/1)
+    ImageWriter.to_file(gray, out_png("mandrill_gray"))
+
+    {:ok, pgray} = pmap_pixels(mandrill, &Col3b.to_gray/1)
+    ImageWriter.to_file(pgray, out_png("mandrill_pgray"))
+
+    assert gray == pgray
+  end
+
   test "reduce histogram" do
     # @rgbp new(2, 2, :rgb, <<255, 0, 0, 0, 255, 0, 0, 0, 255, 205, 133, 63>>)
     img = @rgbp
@@ -308,7 +319,7 @@ defmodule Exa.Image.Image3Test do
   test "histogram" do
     # build histo with diagonal ramp populated
     Enum.reduce(1..20, Histo2D.new(), fn i, h ->
-      Enum.reduce(1..i, h, fn _k, h -> Histo2D.inc(h, {i,i}) end)
+      Enum.reduce(1..i, h, fn _k, h -> Histo2D.inc(h, {i, i}) end)
     end)
     |> from_histo2d()
     |> apply_cmap(Colormap3b.dark_red())
@@ -567,7 +578,7 @@ defmodule Exa.Image.Image3Test do
     }
   end
 
-  # benchmark image access and processing ----------
+  # benchmark parallel processing ----------
 
   @tag benchmark: true
   @tag timeout: 400_000
@@ -585,10 +596,10 @@ defmodule Exa.Image.Image3Test do
   defp para_benchmarks() do
     img = new(@n_para, @n_para, :rgb, @peru)
     gfun = &Col3b.to_gray(&1)
-    bmap = %{"map pixels scalar" => fn -> ImagePara.map_pixels(img, gfun) end}
+    bmap = %{"map pixels scalar" => fn -> pmap_pixels(img, gfun) end}
 
     Enum.reduce(1..16, bmap, fn n, bmap ->
-      Map.put(bmap, "map pixels para #{n}", fn -> ImagePara.map_pixels(img, gfun, n) end)
+      Map.put(bmap, "map pixels para #{n}", fn -> pmap_pixels(img, gfun, n) end)
     end)
   end
 end
