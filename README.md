@@ -38,8 +38,14 @@ Video (only if [ffmpeg](https://ffmpeg.org/download.html) is installed):
 
 ## Building
 
-To bootstrap an `exa_xxx` library build, 
-you must run `mix deps.get` twice.
+**To bootstrap an `exa_xxx` library build,**<br>
+**you must update dependencies twice.**
+
+One way to start a build is:
+```
+  $ mix deps.update exa
+  $ mix deps.get
+```
 
 ## Benchmarks
 
