@@ -68,9 +68,9 @@ defmodule Exa.Image.MixProject do
 
   defp exa_deps() do
     cond do
-       arg_scope() == :rel -> 
+      arg_scope() == :rel ->
         # read auto-generated deps file
-        "deps.ex" |> Code.eval_file() |> elem(0) 
+        "deps.ex" |> Code.eval_file() |> elem(0)
 
       File.regular?(@mix_util) ->
         # generate deps using exa umbrella project
@@ -79,10 +79,11 @@ defmodule Exa.Image.MixProject do
         end
 
         Exa.MixUtil.exa_deps(@lib, exa_libs())
+
       true ->
         # bootstrap from exa umbrella project
         [@exa]
-      end
+    end
   end
 
   # get scope from env var or cmd line
