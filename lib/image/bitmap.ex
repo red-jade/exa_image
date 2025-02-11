@@ -157,6 +157,25 @@ defmodule Exa.Image.Bitmap do
     Enum.reverse(blist)
   end
 
+  @doc """
+  Count the number of bits set (1s) in a bitmap.
+  """
+  @spec nset(%I.Bitmap{}) :: E.count()
+  def nset(%I.Bitmap{width: w, buffer: buf} = bmp) do
+    case pad(bmp) do
+      0 ->
+        Exa.Binary.nset(buf)
+
+      pad ->
+        # ignore padding, which may be non-zero
+        bmp
+        |> get_rev_rows()
+        |> Enum.map(&mask_bits(&1, w, pad))
+        |> Enum.map(&Exa.Binary.nset/1)
+        |> Enum.sum()
+    end
+  end
+
   @doc "Reflect the bitmap in the y-direction."
   @spec reflect_y(%I.Bitmap{}) :: %I.Bitmap{}
 
@@ -184,19 +203,30 @@ defmodule Exa.Image.Bitmap do
     %I.Bitmap{bmp | :buffer => buf}
   end
 
-  def reflect_x(%I.Bitmap{width: w, row: row} = bmp) do
-    pad = 8 * row - w
-
+  def reflect_x(%I.Bitmap{width: w} = bmp) do
     buf =
       bmp
       |> get_rev_rows()
       |> Enum.reverse()
-      |> Enum.map(&mask_reverse_bits(&1, w, pad))
+      |> Enum.map(&mask_reverse_bits(&1, w, pad(bmp)))
       |> Binary.concat()
 
     %I.Bitmap{bmp | :buffer => buf}
   end
 
+  # mask a row buffer to remove padding 
+  # return the ragged bitstring
+  @spec mask_bits(binary(), E.bsize(), E.bsize()) :: E.bits()
+
+  defp mask_bits(buf, _nbits, 0), do: buf
+
+  defp mask_bits(buf, nbits, pad) when pad > 0 do
+    <<data::size(nbits)-bits, _::size(pad)>> = buf
+    data
+  end
+
+  # mask then reverse the significant bits in a row
+  # pad the result back to byte boundary using pad
   @spec mask_reverse_bits(binary(), E.bsize(), E.bsize()) :: binary()
   defp mask_reverse_bits(buf, nbits, pad) when pad > 0 do
     <<data::size(nbits)-bits, _::size(pad)>> = buf
@@ -212,8 +242,8 @@ defmodule Exa.Image.Bitmap do
   `bitfun(i :: E.index0(), j :: E.index0(), b :: bit(), out :: any() ) :: any()`
   """
   @spec reduce(%I.Bitmap{}, a, bit_reducer(a)) :: a when a: var
-  def reduce(%I.Bitmap{width: w, height: h, row: row, buffer: buf}, init, bitred) do
-    pad = 8 * row - w
+  def reduce(%I.Bitmap{width: w, height: h, buffer: buf} = bmp, init, bitred) do
+    pad = pad(bmp)
 
     {<<>>, out} =
       Enum.reduce(0..(h - 1), {buf, init}, fn j, {buf, out} ->
@@ -346,6 +376,10 @@ defmodule Exa.Image.Bitmap do
     |> elem(1)
     |> Binary.parts()
   end
+
+  # get the number of pad bits
+  @spec pad(%I.Bitmap{}) :: 0..7
+  defp pad(%I.Bitmap{width: w, row: row}), do: 8 * row - w
 
   # {byte, bit} offset address (prefix length) of a position in the buffer
   @spec addr(%I.Bitmap{}, S.pos2i()) :: {nbyte :: E.index0(), nbit :: E.index0()}

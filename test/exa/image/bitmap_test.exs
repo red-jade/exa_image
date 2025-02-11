@@ -42,6 +42,8 @@ defmodule Exa.Image.BitmapTest do
              [0, 1, 1, 1]
            ] = count_bits
 
+    assert nset(count) == 6
+
     chess = new(4, 4, @chess_buf44)
     assert %I.Bitmap{width: 4, height: 4, row: 1, buffer: @chess_bytes} = chess
 
@@ -54,8 +56,11 @@ defmodule Exa.Image.BitmapTest do
              [1, 0, 1, 0]
            ] = chess_bits
 
+    assert nset(chess) == 8
+
     black = new(5, 5, 0)
     assert %I.Bitmap{width: 5, height: 5, row: 1, buffer: <<0, 0, 0, 0, 0>>} = black
+    assert nset(black) == 0
 
     white = new(9, 9, 1)
 
@@ -74,6 +79,8 @@ defmodule Exa.Image.BitmapTest do
                  255, 255,
                  255, 255>>
            } = white
+
+    assert nset(white) == 81
 
     # use a predicate to recreate the chessboard: is sum odd
     chess = new(4, 4, fn {i, j} -> is_int_odd(i + j) end)
