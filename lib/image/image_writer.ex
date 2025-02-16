@@ -18,8 +18,6 @@ defmodule Exa.Image.ImageWriter do
   Write an image file.
   Use the filetype to determine the format.
 
-  Returns the full path to the file.
-
   Raises an error if the format is unsupported, 
   or there is any failure.
   """

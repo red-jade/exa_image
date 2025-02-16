@@ -25,11 +25,20 @@ defmodule Exa.Image.Types do
           | :video_4320p
 
   @typedoc """
-  Dimensions, like width and height, usually in units of pixels, 
-  but that can also mean bytes (for 1-channel images) or bits (for bitmaps).
+  Width and height, in units of pixels.
+
+  A pixel unit can be:
+  - multibyte (color images) 
+  - single byte (1-channel images) 
+  - bit (for bitmaps)
   """
   @type size() :: E.count1()
   defguard is_size(d) when is_count1(d)
+
+  @typedoc "Dimensions of an image or bitmap."
+  @type dimensions() :: {width :: I.size(), height :: I.size()}
+
+  defguard is_dims(w, h) when is_size(w) and is_size(h)
 
   @type wrap() ::
           :wrap_repeat

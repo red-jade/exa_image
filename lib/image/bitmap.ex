@@ -1,5 +1,24 @@
 defmodule Exa.Image.Bitmap do
-  @moduledoc "Utilities for bitmap buffers."
+  @moduledoc """
+  Utilities for 2D bitmap buffers.
+
+  Bits are stored in a binary buffer in row-major order.
+  Rows are padded up to the next 8-bit boundary.
+
+  Positions are 2D using 0-based integers.
+
+  A row is described as the x-direction 
+  Position within the row uses index _i._
+  A value of _i_ specifies a column of bits in the bitmap.
+  For bitmap width _w_ the index range is `0 <= i <= (w-1)`.
+
+  The row sequence is described as the y-direction.
+  Position within the column uses index _j._
+  A value of _j_ specifies a row of bits in the bitmap.
+  For bitmap height _h_ the index range is `0 <= j <= (h-1)`.
+
+  Random access to a bit is O(1).
+  """
 
   require Logger
   use Exa.Image.Constants
@@ -176,7 +195,12 @@ defmodule Exa.Image.Bitmap do
     end
   end
 
-  @doc "Reflect the bitmap in the y-direction."
+  @doc """
+  Reflect the bitmap in the y-direction.
+
+  Each row is preserved, 
+  but the order of rows is reversed.
+  """
   @spec reflect_y(%I.Bitmap{}) :: %I.Bitmap{}
 
   def reflect_y(%I.Bitmap{row: 1, buffer: buf} = bmp) do
@@ -189,7 +213,11 @@ defmodule Exa.Image.Bitmap do
     %I.Bitmap{bmp | :buffer => buf}
   end
 
-  @doc "Reflect the bitmap in the x-direction."
+  @doc """
+  Reflect the bitmap in the x-direction.
+
+  Each row is reversed, but the order of rows is not changed.
+  """
   @spec reflect_x(%I.Bitmap{}) :: %I.Bitmap{}
 
   def reflect_x(%I.Bitmap{width: w} = bmp) when Binary.rem8(w) == 0 do
