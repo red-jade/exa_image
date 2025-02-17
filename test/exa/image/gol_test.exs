@@ -7,8 +7,10 @@ defmodule Exa.Image.GolTest do
 
   @tag timeout: 30_000
   test "simple" do
-    gol = Gol.random(100, 100)
-    assert :ok == Gol.animate(@out_dir, "rnd_clp", gol, 200, :clamp0)
-    assert :ok == Gol.animate(@out_dir, "rnd_cyc", gol, 200, :cyclic)
+    clamp = Gol.random(100, 100, 0.4, :clamp0)
+    assert :ok == Gol.animate(@out_dir, "rnd_clp", clamp, 200)
+
+    cyclic = Gol.random(100, 100, 0.4, :cyclic)
+    assert :ok == Gol.animate(@out_dir, "rnd_cyc", cyclic, 200, :cyclic)
   end
 end

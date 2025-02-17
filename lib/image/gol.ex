@@ -7,6 +7,11 @@ defmodule Exa.Image.Gol do
   Boundary conditions can be cyclic, 
   or a zero background border.
 
+  Utilities are provided to write:
+  - image files (png)
+  - animated images (gif) and video (mp4)
+    if FFMPEG is installed 
+
   Also see an asynchrounous implementation at the _Expaca_ project 
   ([Expaca](https://github.com/mike-french/expaca))
   """
@@ -20,6 +25,9 @@ defmodule Exa.Image.Gol do
   import Exa.Color.Types
   alias Exa.Color.Types, as: C
   alias Exa.Color.Col3b
+
+  import Exa.Std.Mol
+  alias Exa.Std.Mol
 
   use Exa.Image.Constants
 
@@ -45,48 +53,76 @@ defmodule Exa.Image.Gol do
   """
   @type boundary() :: :cyclic | :clamp0
 
-  # A 2D cell location as 0-based positions.
-  @typep cell() :: S.pos2i()
+  defguard is_bound(b) when b == :cyclic or b == :clamp0
 
-  # A valid cell position or `:zero` to mark a clamped border value.
-  @typep neigh() :: cell() | :zero
+  @typedoc "A 2D cell location as 0-based positions."
+  @type cell() :: S.pos2i()
 
-  # The 8-neighborhood of a cell 
-  # as a list of cell positions,
-  # or `:zero` to mark a clamped border value.
-  @typep neighborhood() :: [neigh()]
+  @typedoc """
+  The 8-neighborhood of a cell 
+  as a list of cell positions
+  border cells clamped to zero are omitted
+  so the length of the list is `3..8`.
+  """
+  @type neighborhood() :: [cell()]
+
+  @typedoc "A map of cells to their neighborhoods."
+  @type neighborhoods() :: Mol.mol(cell(), cell())
+
+  @typedoc """
+  A GoL frame with a neighborhood index.
+  """
+  @type gol() :: {:gol, %I.Bitmap{}, neighborhoods()}
+
+  defguard is_gol(g) when is_tuple_tag(g, 3, :gol) and is_bitmap(elem(g, 1)) and is_mol(elem(g, 2))
 
   # ----------------
   # public functions
   # ----------------
 
   @doc """
-  Create a new random GoL grid.
-  """
-  @spec random(I.size(), I.size()) :: %I.Bitmap{}
-  def random(w, h) when is_size(w) and is_size(h) do
-    Bitmap.random(w, h)
-  end
-
-  @doc """
-  Advance the GoL one step.
+  Create a new GoL frame.
 
   The boundary condition can be either:
   - cyclic (default)
   - clamped to zero 
   """
-  @spec next(%I.Bitmap{}, boundary()) :: %I.Bitmap{}
-  def next(%I.Bitmap{width: w, height: h} = bmp, bound \\ :cyclic)
+  @spec new(%I.Bitmap{}, boundary()) :: gol()
+  def new(%I.Bitmap{width: w, height: h}=bmp, bound) when is_bound(bound) do
+    {:gol, bmp, neighborhoods(w, h, bound)}
+  end
+
+  @doc """
+  Create a new random GoL frame.
+
+  The boundary condition can be either:
+  - cyclic (default)
+  - clamped to zero 
+
+  The occupancy is a number between 0.0 and 1.0,
+  which specifies the probability that each cell is alive.
+  """
+  @spec random(I.size(), I.size(), E.unit(), boundary()) :: gol()
+  def random(w, h, p \\ 0.5, bound \\ :cyclic)
+      when is_size(w) and is_size(h) and is_bound(bound) and is_unit(p) do
+    new(Bitmap.random(w, h, p), bound)
+  end
+
+  @doc """
+  Advance the GoL one step.
+  """
+  @spec next(gol()) :: gol()
+  def next({:gol, %I.Bitmap{width: w, height: h} = bmp, neighs})
       when is_size(w) and is_size(h) do
-    Bitmap.new(w, h, fn ij ->
-      bmp
-      |> neighborhood(ij, bound)
-      |> Enum.reduce(0, fn
-        :zero, nn -> nn
-        ij, nn -> nn + Bitmap.get_bit(bmp, ij)
+    next_bmp =
+      Bitmap.new(w, h, fn ij ->
+        neighs
+        |> Mol.get(ij)
+        |> Enum.reduce(0, fn loc, nn -> nn + Bitmap.get_bit(bmp, loc) end)
+        |> gol_rule(Bitmap.get_bit(bmp, ij))
       end)
-      |> gol_rule(Bitmap.get_bit(bmp, ij))
-    end)
+
+    {:gol, next_bmp, neighs}
   end
 
   @spec gol_rule(0..8, E.bit()) :: bool()
@@ -99,33 +135,35 @@ defmodule Exa.Image.Gol do
   Generate a forward sequence of frames.
 
   Write the images to file (png).
-  Create video (mp4) animated image (gif).
+  Create video (mp4) animated image (gif)
+  if FFMPEG is installed.
   """
   @spec animate(
           E.filename(),
           E.filename(),
-          %I.Bitmap{},
+          gol(),
           E.count1(),
           boundary(),
           E.count1(),
           C.colorb(),
           C.colorb()
         ) :: :ok | {:error, any()}
-  def animate(dir, name, bmp, n, bound \\ :cyclic, frate \\ 12, scale \\ 4, fg \\ @fg, bg \\ @bg)
-      when is_string(dir) and is_string(name) and is_bitmap(bmp) and is_count1(n) and
+  def animate(dir, name, gol, n, frate \\ 12, scale \\ 4, fg \\ @fg, bg \\ @bg)
+      when is_string(dir) and is_string(name) and is_count1(n) and
              is_count1(frate) and is_colorb(fg) and is_colorb(bg) do
     dir = Path.join(dir, name)
 
-    Enum.reduce(1..n, bmp, fn i, bmp ->
-      nxt = next(bmp, bound)
+    Enum.reduce(1..n, gol, fn i, gol ->
+      next_gol = next(gol)
 
-      nxt 
+      next_gol
+      |> elem(1)
       |> Bitmap.reflect_y()
       |> Bitmap.to_image(:rgb, fg, bg)
       |> Resize.resize(scale)
       |> ImageWriter.to_file(out_png(dir, name, i))
 
-      nxt
+      next_gol
     end)
 
     seq = out_seq(dir, name)
@@ -142,29 +180,42 @@ defmodule Exa.Image.Gol do
   # private functions
   # -----------------
 
+  # calculate neighborhoods for all cells in the frame
+  @spec neighborhoods(I.size(), I.size(), boundary()) :: neighborhoods()
+  defp neighborhoods(w, h, bound) do
+    Enum.reduce(0..h-1, Mol.new(), fn j, mol ->
+    Enum.reduce(0..w-1, mol, fn i, mol ->
+      loc = {i, j}
+      Mol.set(mol, loc, neighborhood(w, h, loc, bound))
+    end)
+  end)
+  end
+
   # Calculate the neighborhood of a cell in the frame.
-  # The neighborhood is a list of adjacent positions,
-  # or a marker `:zero` for the clamped boundary.
+  # The neighborhood is a list of adjacent positions.
   # The order of the positions is not specified.
-  @spec neighborhood(%I.Bitmap{}, cell(), boundary()) :: neighborhood()
-  defp neighborhood(%I.Bitmap{width: w, height: h}, {i, j}, bound) do
+  @spec neighborhood(I.size(), I.size(), cell(), boundary()) :: neighborhood()
+
+  defp neighborhood( w, h, {i, j}, :clamp0) do
+    for dj <- -1..1,
+        di <- -1..1,
+        not (di == 0 and dj == 0),
+        ii = i + di,
+        jj = j + dj,
+        not (ii == -1 or ii == w or jj == -1 or jj == h),
+        into: [] do
+      {ii, jj}
+    end
+  end
+
+  defp neighborhood( w, h, {i, j}, :cyclic) do
     for dj <- -1..1,
         di <- -1..1,
         not (di == 0 and dj == 0),
         ii = i + di,
         jj = j + dj,
         into: [] do
-      case bound do
-        :clamp0 ->
-          if ii == -1 or ii == w or jj == -1 or jj == h do
-            :zero
-          else
-            {ii, jj}
-          end
-
-        :cyclic ->
-          {rem(ii + w, w), rem(jj + h, h)}
-      end
+      {rem(ii + w, w), rem(jj + h, h)}
     end
   end
 

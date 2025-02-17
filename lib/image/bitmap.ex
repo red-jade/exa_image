@@ -66,7 +66,7 @@ defmodule Exa.Image.Bitmap do
   The image can be created from either:
   - an existing buffer
   - initialized with a background bit value (0,1)
-  - predicate function that returns a bit for each location
+  - predicate function that returns a boolean for each location
   - sparse set of locations with a bit value 1
   """
   @spec new(I.size(), I.size(), binary() | E.bit() | bit_predicate() | bitset()) :: %I.Bitmap{}
@@ -114,12 +114,23 @@ defmodule Exa.Image.Bitmap do
     new(w, h, fn loc -> if MapSet.member?(bset, loc), do: 1, else: 0 end)
   end
 
-  @doc "Create a random bitmap."
-  @spec random(I.size(), I.size()) :: %I.Bitmap{}
-  def random(w, h) when is_size(w) and is_size(h) do
+  @doc """
+  Create a random bitmap.
+
+  The occupancy is a number between 0.0 and 1.0,
+  which specifies the probability that each cell is alive.
+  """
+  @spec random(I.size(), I.size(), E.unit()) :: %I.Bitmap{}
+  def random(w, h, p \\ 0.5)
+
+  def random(w, h, 0.5) when is_size(w) and is_size(h) do
     row = Binary.padded_bits(w)
     buf = :rand.bytes(h * row)
     %I.Bitmap{width: w, height: h, row: row, buffer: buf}
+  end
+
+  def random(w, h, p) when is_size(w) and is_size(h) and is_unit(p) do
+    new(w, h, fn _loc -> :rand.uniform() <= p end)
   end
 
   @doc "Get the extents of the bitmap."
