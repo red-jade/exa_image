@@ -18,6 +18,8 @@ defmodule Exa.Image.Gol do
 
   require Logger
 
+  import Bitwise
+
   import Exa.Types
   alias Exa.Types, as: E
   alias Exa.Space.Types, as: S
@@ -59,6 +61,13 @@ defmodule Exa.Image.Gol do
   @type cell() :: S.pos2i()
 
   @typedoc """
+  A small integer hash of a cell location.
+  A 24-bit unsigned (non-negative) integer,
+  so bitmap dimension must be less than 2^12^ = 4096.
+  """
+  @type ijhash() :: non_neg_integer()
+
+  @typedoc """
   The 8-neighborhood of a cell 
   as a list of cell positions
   border cells clamped to zero are omitted
@@ -66,15 +75,16 @@ defmodule Exa.Image.Gol do
   """
   @type neighborhood() :: [cell()]
 
-  @typedoc "A map of cells to their neighborhoods."
-  @type neighborhoods() :: Mol.mol(cell(), cell())
+  @typedoc "A map of cell hashes to their neighborhoods."
+  @type neighborhoods() :: Mol.mol(ijhash(), cell())
 
   @typedoc """
   A GoL frame with a neighborhood index.
   """
   @type gol() :: {:gol, %I.Bitmap{}, neighborhoods()}
 
-  defguard is_gol(g) when is_tuple_tag(g, 3, :gol) and is_bitmap(elem(g, 1)) and is_mol(elem(g, 2))
+  defguard is_gol(g)
+           when is_tuple_tag(g, 3, :gol) and is_bitmap(elem(g, 1)) and is_mol(elem(g, 2))
 
   # ----------------
   # public functions
@@ -88,7 +98,7 @@ defmodule Exa.Image.Gol do
   - clamped to zero 
   """
   @spec new(%I.Bitmap{}, boundary()) :: gol()
-  def new(%I.Bitmap{width: w, height: h}=bmp, bound) when is_bound(bound) do
+  def new(%I.Bitmap{width: w, height: h} = bmp, bound) when is_bound(bound) do
     {:gol, bmp, neighborhoods(w, h, bound)}
   end
 
@@ -117,7 +127,7 @@ defmodule Exa.Image.Gol do
     next_bmp =
       Bitmap.new(w, h, fn ij ->
         neighs
-        |> Mol.get(ij)
+        |> Mol.get(hash(ij))
         |> Enum.reduce(0, fn loc, nn -> nn + Bitmap.get_bit(bmp, loc) end)
         |> gol_rule(Bitmap.get_bit(bmp, ij))
       end)
@@ -183,20 +193,21 @@ defmodule Exa.Image.Gol do
   # calculate neighborhoods for all cells in the frame
   @spec neighborhoods(I.size(), I.size(), boundary()) :: neighborhoods()
   defp neighborhoods(w, h, bound) do
-    Enum.reduce(0..h-1, Mol.new(), fn j, mol ->
-    Enum.reduce(0..w-1, mol, fn i, mol ->
-      loc = {i, j}
-      Mol.set(mol, loc, neighborhood(w, h, loc, bound))
+    Enum.reduce(0..(h - 1), Mol.new(), fn j, mol ->
+      Enum.reduce(0..(w - 1), mol, fn i, mol ->
+        loc = {i, j}
+        Mol.set(mol, hash(loc), neighborhood(w, h, loc, bound))
+      end)
     end)
-  end)
   end
 
   # Calculate the neighborhood of a cell in the frame.
   # The neighborhood is a list of adjacent positions.
+  # Clamped zero neighbors are not included.
   # The order of the positions is not specified.
   @spec neighborhood(I.size(), I.size(), cell(), boundary()) :: neighborhood()
 
-  defp neighborhood( w, h, {i, j}, :clamp0) do
+  defp neighborhood(w, h, {i, j}, :clamp0) do
     for dj <- -1..1,
         di <- -1..1,
         not (di == 0 and dj == 0),
@@ -208,7 +219,7 @@ defmodule Exa.Image.Gol do
     end
   end
 
-  defp neighborhood( w, h, {i, j}, :cyclic) do
+  defp neighborhood(w, h, {i, j}, :cyclic) do
     for dj <- -1..1,
         di <- -1..1,
         not (di == 0 and dj == 0),
@@ -218,6 +229,14 @@ defmodule Exa.Image.Gol do
       {rem(ii + w, w), rem(jj + h, h)}
     end
   end
+
+  # Encode a location as a single small integer
+  @spec hash(cell()) :: ijhash()
+  def hash({i, j}), do: i <<< 12 ||| j
+
+  # Decode a single small integer into a location
+  @spec unhash(ijhash()) :: cell()
+  def unhash(hash), do: {hash >>> 12 &&& 0xFFF, hash &&& 0xFFF}
 
   # png image filename
   @spec out_png(E.filename(), E.filename(), E.count1()) :: E.filename()

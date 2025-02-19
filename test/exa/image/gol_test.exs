@@ -11,6 +11,6 @@ defmodule Exa.Image.GolTest do
     assert :ok == Gol.animate(@out_dir, "rnd_clp", clamp, 200)
 
     cyclic = Gol.random(100, 100, 0.4, :cyclic)
-    assert :ok == Gol.animate(@out_dir, "rnd_cyc", cyclic, 200, :cyclic)
+    assert :ok == Gol.animate(@out_dir, "rnd_cyc", cyclic, 200)
   end
 end
